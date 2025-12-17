@@ -1,0 +1,35 @@
+{
+  "name": "aiegator",
+  "version": "0.1.0",
+  "description": "AI-powered event data aggregator",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "start": "turbo run start",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "db:migrate": "npm run db:migrate --workspace=@aiegator/database",
+    "db:generate": "npm run db:generate --workspace=@aiegator/database",
+    "db:seed": "npm run db:seed --workspace=@aiegator/database",
+    "collector:start": "npm run start --workspace=@aiegator/collector",
+    "api:dev": "npm run dev --workspace=@aiegator/api",
+    "worker:dev": "npm run dev --workspace=@aiegator/worker",
+    "web:dev": "npm run dev --workspace=@aiegator/web"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "prettier": "^3.1.0",
+    "turbo": "^2.0.0",
+    "typescript": "^5.3.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "packageManager": "npm@10.2.0"
+}
