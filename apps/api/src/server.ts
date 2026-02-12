@@ -23,6 +23,10 @@ const luma = new LumaAdapter({
   calendarApiId: calendarIds,
 });
 
+// Eventbrite config
+const EVENTBRITE_TOKEN = process.env.EVENTBRITE_PRIVATE_TOKEN || '';
+const EVENTBRITE_SEED_IDS = (process.env.EVENTBRITE_EVENT_IDS || '').split(',').filter(Boolean);
+
 // Fetch event detail from lu.ma for enrichment
 async function fetchEventDetail(eventApiId: string): Promise<any> {
   try {
@@ -106,6 +110,164 @@ async function enrichEvents(events: any[]): Promise<any[]> {
   return enriched;
 }
 
+// ---- Eventbrite Integration ----
+
+// Scrape Eventbrite search page for event IDs
+async function discoverEventbriteIds(): Promise<string[]> {
+  const searches = [
+    'https://www.eventbrite.com/d/co--denver/ethdenver/',
+    'https://www.eventbrite.com/d/co--denver/eth-denver/',
+    'https://www.eventbrite.com/d/co--denver/crypto-denver-2026/',
+  ];
+  const ids = new Set<string>();
+
+  for (const url of searches) {
+    try {
+      const res = await fetch(url, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; eGator/1.0)' },
+      });
+      if (!res.ok) continue;
+      const html = await res.text();
+      // Extract event IDs from Eventbrite's HTML (data-event-id, /e/ URLs, etc.)
+      const patterns = [
+        /data-event-id="(\d+)"/g,
+        /\/e\/[^"]*?-(\d+)(?:\?|")/g,
+        /"event_id":"(\d+)"/g,
+      ];
+      for (const pat of patterns) {
+        let m;
+        while ((m = pat.exec(html)) !== null) {
+          if (m[1].length >= 10) ids.add(m[1]);
+        }
+      }
+    } catch {
+      // silently skip failed scrapes
+    }
+  }
+  return [...ids];
+}
+
+// Fetch a single Eventbrite event by ID
+async function fetchEventbriteEvent(id: string): Promise<any> {
+  if (!EVENTBRITE_TOKEN) return null;
+  try {
+    const res = await fetch(
+      `https://www.eventbriteapi.com/v3/events/${id}/?expand=venue,ticket_availability,organizer`,
+      { headers: { Authorization: `Bearer ${EVENTBRITE_TOKEN}` } }
+    );
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
+// Transform Eventbrite API response to our unified format
+function transformEventbriteEvent(eb: any): any {
+  const venue = eb.venue;
+  const isFree = eb.is_free ?? false;
+  const ticketAvail = eb.ticket_availability;
+
+  return {
+    id: `eb-${eb.id}`,
+    title: eb.name?.text || eb.name?.html || 'Untitled',
+    description: eb.description?.text || eb.summary || null,
+    startTime: eb.start?.utc || eb.start?.local,
+    endTime: eb.end?.utc || eb.end?.local || null,
+    venue: venue ? {
+      name: venue.name || null,
+      address: venue.address?.localized_address_display || venue.address?.address_1 || null,
+      city: venue.address?.city || null,
+      lat: venue.address?.latitude ? parseFloat(venue.address.latitude) : null,
+      lng: venue.address?.longitude ? parseFloat(venue.address.longitude) : null,
+    } : null,
+    imageUrl: eb.logo?.url || null,
+    url: eb.url,
+    ticketUrl: eb.url,
+    price: isFree
+      ? { min: 0, max: 0, currency: 'USD' }
+      : ticketAvail?.minimum_ticket_price
+        ? {
+            min: parseFloat(ticketAvail.minimum_ticket_price.major_value),
+            max: ticketAvail.maximum_ticket_price
+              ? parseFloat(ticketAvail.maximum_ticket_price.major_value)
+              : parseFloat(ticketAvail.minimum_ticket_price.major_value),
+            currency: ticketAvail.minimum_ticket_price.currency || 'USD',
+          }
+        : null,
+    isFree,
+    organizer: eb.organizer ? {
+      name: eb.organizer.name || null,
+      url: eb.organizer.url || null,
+      avatar: eb.organizer.logo?.url || null,
+    } : null,
+    attendeeCount: null,
+    categories: eb.category_id ? [mapEbCategory(eb.category_id)] : [],
+    tags: [],
+    isOnline: eb.online_event || false,
+    onlineUrl: eb.online_event ? eb.url : null,
+    source: 'eventbrite',
+    isSoldOut: ticketAvail?.is_sold_out ?? false,
+  };
+}
+
+function mapEbCategory(categoryId: string): string {
+  const map: Record<string, string> = {
+    '102': 'tech', '101': 'business', '103': 'music',
+    '110': 'food', '104': 'arts', '108': 'sports',
+    '106': 'community', '114': 'education', '199': 'other',
+  };
+  return map[categoryId] ?? 'other';
+}
+
+// Fetch all Eventbrite events (seed IDs + discovered)
+async function fetchEventbriteEvents(): Promise<any[]> {
+  if (!EVENTBRITE_TOKEN) {
+    console.log('[server] Eventbrite not configured, no token set');
+    return [];
+  }
+
+  try {
+    // Combine seed IDs with discovered IDs
+    const discovered = await discoverEventbriteIds();
+    const allIds = [...new Set([...EVENTBRITE_SEED_IDS, ...discovered])];
+    console.log(`[server] Eventbrite: ${EVENTBRITE_SEED_IDS.length} seed + ${discovered.length} discovered = ${allIds.length} unique IDs`);
+
+    if (allIds.length === 0) return [];
+
+    // Fetch in batches of 5
+    const results: any[] = [];
+    for (let i = 0; i < allIds.length; i += 5) {
+      const batch = allIds.slice(i, i + 5);
+      const events = await Promise.all(batch.map(fetchEventbriteEvent));
+      for (const e of events) {
+        if (e && e.id && !e.error) {
+          results.push(transformEventbriteEvent(e));
+        }
+      }
+    }
+
+    console.log(`[server] Eventbrite: fetched ${results.length} events`);
+    return results;
+  } catch (error) {
+    console.error('[server] Eventbrite fetch failed:', error);
+    return [];
+  }
+}
+
+// Deduplicate across sources (by title similarity)
+function dedupeEvents(events: any[]): any[] {
+  const seen = new Map<string, any>();
+  for (const e of events) {
+    const key = e.title.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 40);
+    if (!seen.has(key)) {
+      seen.set(key, e);
+    }
+    // prefer luma over eventbrite (richer data from enrichment)
+  }
+  return [...seen.values()];
+}
+
 // Transform Luma normalized event to our API format
 function transformLumaEvent(normalized: any, eventApiId?: string): any {
   const startDate = normalized.startDate instanceof Date && !isNaN(normalized.startDate.getTime())
@@ -171,19 +333,38 @@ async function fetchLumaEvents(limit = 100) {
   }
 }
 
-// Cache for Luma events (refresh every 10 min - longer TTL since enrichment is expensive)
-let lumaCache: { events: any[], time: number } | null = null;
+// Cache for all events (refresh every 10 min - longer TTL since enrichment is expensive)
+let eventCache: { events: any[], time: number, sources: string[] } | null = null;
 const CACHE_TTL = 10 * 60 * 1000;
 
-async function getCachedLumaEvents() {
-  if (!lumaCache || Date.now() - lumaCache.time > CACHE_TTL) {
-    const events = await fetchLumaEvents();
-    lumaCache = { events, time: Date.now() };
-    console.log(`[server] Refreshed Luma cache: ${events.length} enriched events`);
-    return events;
+async function getCachedEvents() {
+  if (!eventCache || Date.now() - eventCache.time > CACHE_TTL) {
+    const sources: string[] = [];
+
+    // Fetch from all sources in parallel
+    const [lumaEvents, ebEvents] = await Promise.all([
+      fetchLumaEvents(),
+      fetchEventbriteEvents(),
+    ]);
+
+    if (lumaEvents.length > 0) sources.push('luma');
+    if (ebEvents.length > 0) sources.push('eventbrite');
+
+    // Merge and deduplicate
+    const merged = dedupeEvents([...lumaEvents, ...ebEvents]);
+
+    // Sort by start time
+    merged.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+
+    eventCache = { events: merged, time: Date.now(), sources };
+    console.log(`[server] Refreshed cache: ${merged.length} events (luma: ${lumaEvents.length}, eb: ${ebEvents.length}, after dedup: ${merged.length})`);
+    return merged;
   }
-  return lumaCache.events;
+  return eventCache.events;
 }
+
+// Keep backward compat alias
+const getCachedLumaEvents = getCachedEvents;
 
 async function main() {
   await fastify.register(cors, { origin: true });
@@ -197,26 +378,30 @@ async function main() {
   // API info endpoint
   fastify.get('/api', async () => ({
     name: 'AIeGator API',
-    version: '2.0.0',
-    description: 'AI-powered event discovery - ETHDenver via Luma',
+    version: '2.1.0',
+    description: 'AI-powered event discovery - ETHDenver via Luma + Eventbrite',
     endpoints: {
       health: 'GET /health',
-      discover: 'POST /api/v1/discover',
+      discover: 'POST /api/v1/discover (body: query, category, freeOnly, startDate, endDate, source, limit)',
       tonight: 'GET /api/v1/discover/tonight',
       weekend: 'GET /api/v1/discover/weekend',
       luma: 'GET /api/v1/discover/luma',
       neighborhoods: 'GET /api/v1/neighborhoods',
     },
-    sources: ['luma'],
+    sources: ['luma', 'eventbrite'],
     calendars: calendarIds.length,
   }));
 
   // Health check
   fastify.get('/health', async () => ({
     status: 'ok',
-    luma: luma.isConfigured(),
+    sources: {
+      luma: luma.isConfigured(),
+      eventbrite: !!EVENTBRITE_TOKEN,
+    },
     calendars: calendarIds.length,
-    cachedEvents: lumaCache?.events.length ?? 0,
+    cachedEvents: eventCache?.events.length ?? 0,
+    activeSources: eventCache?.sources || [],
     enriched: true,
     timestamp: new Date().toISOString()
   }));
@@ -251,11 +436,26 @@ async function main() {
       events = events.filter((e: any) => e.isFree);
     }
 
+    // Filter by date range
+    if (body.startDate) {
+      const start = new Date(body.startDate);
+      events = events.filter((e: any) => new Date(e.startTime) >= start);
+    }
+    if (body.endDate) {
+      const end = new Date(body.endDate);
+      events = events.filter((e: any) => new Date(e.startTime) <= end);
+    }
+
+    // Filter by source
+    if (body.source) {
+      events = events.filter((e: any) => e.source === body.source);
+    }
+
     // Limit
     const limit = body.limit || 50;
     events = events.slice(0, limit);
 
-    return { events, sources: ['luma'], count: events.length };
+    return { events, sources: eventCache?.sources || ['luma'], count: events.length };
   });
 
   // Tonight
@@ -715,6 +915,7 @@ async function main() {
   await fastify.listen({ port, host: '0.0.0.0' });
   console.log(`AIeGator API running at http://localhost:${port}`);
   console.log(`   Luma: ${luma.isConfigured() ? 'Connected (' + calendarIds.length + ' calendars)' : 'Not configured'}`);
+  console.log(`   Eventbrite: ${EVENTBRITE_TOKEN ? 'Connected' : 'Not configured'}`);
 }
 
 main();
