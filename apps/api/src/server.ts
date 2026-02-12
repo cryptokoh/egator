@@ -268,6 +268,95 @@ function dedupeEvents(events: any[]): any[] {
   return [...seen.values()];
 }
 
+// ---- Smart Categorization Engine ----
+
+const MAIN_CATEGORIES: Record<string, { label: string; emoji: string; keywords: string[] }> = {
+  defi: {
+    label: 'DeFi & Trading',
+    emoji: '💰',
+    keywords: ['defi', 'trading', 'stablecoin', 'dex', 'swap', 'liquidity', 'yield', 'lending', 'borrow', 'amm', 'perp', 'derivatives', 'payment', 'pay ', 'payfi', 'rwa', 'real world asset', 'tokeniz', 'onchain data', 'market insight', 'capital market'],
+  },
+  ai: {
+    label: 'AI & Agents',
+    emoji: '🤖',
+    keywords: ['ai ', ' ai', 'artificial intelligence', 'agent', 'agentic', 'machine learning', 'llm', 'gpt', 'infofi', 'robocon', 'asimov', 'gensyn', 'decentralized ai', 'house of ai'],
+  },
+  infra: {
+    label: 'Infrastructure',
+    emoji: '🔧',
+    keywords: ['infra', 'scaling', 'l1', 'l2', 'layer 1', 'layer 2', 'rollup', 'bridge', 'crosschain', 'cross-chain', 'multichain', 'intent', 'relay', 'data', 'rpc', 'node', 'validator', 'consensus', 'modular', 'hedera', 'optimism', 'arbitrum', 'monad', 'base', 'polygon', 'solana', 'polkadot', 'tezos', 'sonic', 'sei ', 'aptos', 'ton ', 'near', 'stacks', 'subsquid', 'allium', 'dune', 'depin', 'fireblocks'],
+  },
+  build: {
+    label: 'Builder & Dev',
+    emoji: '🛠️',
+    keywords: ['builder', 'buidl', 'hack', 'developer', 'devrel', 'dev day', 'engineer', 'workshop', 'bootcamp', 'tutorial', 'code', 'smart contract', 'open source', 'sdk', 'api', 'meetup', 'office hour', 'whitepaper reading'],
+  },
+  capital: {
+    label: 'Investor & VC',
+    emoji: '📈',
+    keywords: ['investor', 'vc ', 'venture', 'funding', 'pitch', 'founder', 'fund ', 'lp ', 'capital', 'raise', 'seed', 'series', 'deal', 'portfolio', 'summit', 'roundtable'],
+  },
+  social: {
+    label: 'Social & Party',
+    emoji: '🎉',
+    keywords: ['party', 'happy hour', 'cocktail', 'mixer', 'networking', 'dinner', 'brunch', 'lunch', 'drinks', 'beer', 'casino', 'poker', 'club', 'gala', 'reception', 'kickoff', 'opening', 'afters', 'vip', 'cafe', 'coffee'],
+  },
+  wellness: {
+    label: 'Wellness & Fitness',
+    emoji: '🧘',
+    keywords: ['run ', 'running', 'workout', 'fitness', 'yoga', 'meditation', 'wellness', 'sauna', 'hike', 'hiking', 'walk', 'lift', 'pump', 'gym', 'health', 'breathwork', 'sound bath', 'healing'],
+  },
+  privacy: {
+    label: 'Privacy & Security',
+    emoji: '🛡️',
+    keywords: ['privacy', 'security', 'zero knowledge', 'zk', 'encryption', 'darkmode', 'audit', 'bug bounty', 'mpc', 'fhe', 'identity', 'proof of humanity', 'anonymous'],
+  },
+  art: {
+    label: 'Art & Culture',
+    emoji: '🎨',
+    keywords: ['art ', 'arts', 'nft', 'gallery', 'exhibit', 'museum', 'creative', 'content', 'media', 'film', 'music', 'culture', 'podcast'],
+  },
+};
+
+function categorizeEvent(event: any): string {
+  const text = [
+    event.title || '',
+    event.description || '',
+    event.organizer?.name || '',
+    ...(event.categories || []),
+  ].join(' ').toLowerCase();
+
+  // Score each category
+  let bestCategory = 'social'; // default
+  let bestScore = 0;
+
+  for (const [key, cat] of Object.entries(MAIN_CATEGORIES)) {
+    let score = 0;
+    for (const kw of cat.keywords) {
+      if (text.includes(kw)) score++;
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      bestCategory = key;
+    }
+  }
+
+  return bestCategory;
+}
+
+function enrichWithCategory(events: any[]): any[] {
+  return events.map(e => {
+    const mainCategory = categorizeEvent(e);
+    const catInfo = MAIN_CATEGORIES[mainCategory];
+    return {
+      ...e,
+      mainCategory,
+      mainCategoryLabel: catInfo.label,
+      mainCategoryEmoji: catInfo.emoji,
+    };
+  });
+}
+
 // Transform Luma normalized event to our API format
 function transformLumaEvent(normalized: any, eventApiId?: string): any {
   const startDate = normalized.startDate instanceof Date && !isNaN(normalized.startDate.getTime())
@@ -350,8 +439,8 @@ async function getCachedEvents() {
     if (lumaEvents.length > 0) sources.push('luma');
     if (ebEvents.length > 0) sources.push('eventbrite');
 
-    // Merge and deduplicate
-    const merged = dedupeEvents([...lumaEvents, ...ebEvents]);
+    // Merge, deduplicate, categorize
+    const merged = enrichWithCategory(dedupeEvents([...lumaEvents, ...ebEvents]));
 
     // Sort by start time
     merged.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
@@ -378,11 +467,12 @@ async function main() {
   // API info endpoint
   fastify.get('/api', async () => ({
     name: 'AIeGator API',
-    version: '2.1.0',
+    version: '3.0.0',
     description: 'AI-powered event discovery - ETHDenver via Luma + Eventbrite',
     endpoints: {
       health: 'GET /health',
-      discover: 'POST /api/v1/discover (body: query, category, freeOnly, startDate, endDate, source, limit)',
+      categories: 'GET /api/v1/categories',
+      discover: 'POST /api/v1/discover (body: query, mainCategory, category, freeOnly, startDate, endDate, source, limit)',
       tonight: 'GET /api/v1/discover/tonight',
       weekend: 'GET /api/v1/discover/weekend',
       luma: 'GET /api/v1/discover/luma',
@@ -406,6 +496,23 @@ async function main() {
     timestamp: new Date().toISOString()
   }));
 
+  // Categories endpoint
+  fastify.get('/api/v1/categories', async () => {
+    const allEvents = await getCachedEvents();
+    const counts: Record<string, number> = {};
+    for (const e of allEvents) {
+      counts[e.mainCategory] = (counts[e.mainCategory] || 0) + 1;
+    }
+    return {
+      categories: Object.entries(MAIN_CATEGORIES).map(([key, cat]) => ({
+        id: key,
+        label: cat.label,
+        emoji: cat.emoji,
+        count: counts[key] || 0,
+      })).sort((a, b) => b.count - a.count),
+    };
+  });
+
   // Main discovery endpoint
   fastify.post('/api/v1/discover', async (request) => {
     const body = request.body as any;
@@ -423,7 +530,12 @@ async function main() {
       );
     }
 
-    // Filter by category
+    // Filter by main category (defi, ai, infra, build, capital, social, wellness, privacy, art)
+    if (body.mainCategory) {
+      events = events.filter((e: any) => e.mainCategory === body.mainCategory);
+    }
+
+    // Filter by source category (from Luma/Eventbrite)
     if (body.category) {
       const cat = body.category.toLowerCase();
       events = events.filter((e: any) =>

@@ -23,6 +23,11 @@ export class EGatorPlugin implements FlowBPlugin, EventProvider {
 
   actions = {
     search: { description: "Search events across all sources" },
+    categories: { description: "Browse events by category (DeFi, AI, Infra, etc.)" },
+    browse: { description: "Browse events in a specific category" },
+    tonight: { description: "Events happening tonight" },
+    week: { description: "Events this week" },
+    free: { description: "Free events only" },
   };
 
   private config: EGatorPluginConfig | null = null;
@@ -41,6 +46,16 @@ export class EGatorPlugin implements FlowBPlugin, EventProvider {
     switch (action) {
       case "search":
         return this.searchEvents(input);
+      case "categories":
+        return this.showCategories();
+      case "browse":
+        return this.browseCategory(input);
+      case "tonight":
+        return this.tonightEvents();
+      case "week":
+        return this.weekEvents();
+      case "free":
+        return this.freeEvents();
       default:
         return `Unknown eGator action: ${action}`;
     }
@@ -99,19 +114,166 @@ export class EGatorPlugin implements FlowBPlugin, EventProvider {
   // ========================================================================
 
   private async searchEvents(input: ToolInput): Promise<string> {
-    const events = await this.getEvents({
-      city: input.city,
-      category: input.category,
-      danceStyle: input.dance_style,
-      limit: 10,
-    });
+    if (!this.config) return "Not configured.";
 
-    if (!events.length) {
-      const note = input.city ? ` in ${input.city}` : "";
-      return `No events found${note}. Check back soon!`;
+    try {
+      const res = await fetch(`${this.config.apiBaseUrl}/api/v1/discover`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: input.query || input.city,
+          mainCategory: input.category,
+          limit: 10,
+        }),
+      });
+
+      if (!res.ok) return "Search failed. Try again.";
+      const data = await res.json();
+      const events = data.events || [];
+
+      if (!events.length) {
+        return `No events found. Try "categories" to browse by type.`;
+      }
+
+      return formatEventList(events, "Search Results");
+    } catch {
+      return "Search failed. Try again.";
     }
+  }
 
-    return formatEventList(events, "Events");
+  private async showCategories(): Promise<string> {
+    if (!this.config) return "Not configured.";
+
+    try {
+      const res = await fetch(`${this.config.apiBaseUrl}/api/v1/categories`);
+      if (!res.ok) return "Failed to load categories.";
+      const data = await res.json();
+
+      const lines = ["**Event Categories**\n"];
+      for (const cat of data.categories) {
+        lines.push(`${cat.emoji} **${cat.label}** — ${cat.count} events`);
+      }
+      lines.push("");
+      lines.push('Say "browse defi" or "browse ai" to see events in a category.');
+      lines.push('Or try: "tonight", "this week", "free events"');
+
+      return lines.join("\n");
+    } catch {
+      return "Failed to load categories.";
+    }
+  }
+
+  private async browseCategory(input: ToolInput): Promise<string> {
+    if (!this.config) return "Not configured.";
+
+    const category = (input.category || input.query || "").toLowerCase().trim();
+
+    // Map common aliases
+    const aliases: Record<string, string> = {
+      "defi": "defi", "trading": "defi", "finance": "defi",
+      "ai": "ai", "agents": "ai", "artificial intelligence": "ai",
+      "infra": "infra", "infrastructure": "infra", "l2": "infra", "scaling": "infra",
+      "build": "build", "builder": "build", "dev": "build", "hack": "build", "hackathon": "build",
+      "capital": "capital", "vc": "capital", "investor": "capital", "funding": "capital",
+      "social": "social", "party": "social", "networking": "social", "happy hour": "social",
+      "wellness": "wellness", "fitness": "wellness", "health": "wellness",
+      "privacy": "privacy", "security": "privacy", "zk": "privacy",
+      "art": "art", "culture": "art", "nft": "art",
+    };
+
+    const mainCategory = aliases[category] || category;
+
+    try {
+      const res = await fetch(`${this.config.apiBaseUrl}/api/v1/discover`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mainCategory, limit: 10 }),
+      });
+
+      if (!res.ok) return "Failed to browse category.";
+      const data = await res.json();
+      const events = data.events || [];
+
+      if (!events.length) {
+        return `No events in "${category}". Try "categories" to see all options.`;
+      }
+
+      return formatEventList(events, `${mainCategory.charAt(0).toUpperCase() + mainCategory.slice(1)} Events`);
+    } catch {
+      return "Failed to browse category.";
+    }
+  }
+
+  private async tonightEvents(): Promise<string> {
+    if (!this.config) return "Not configured.";
+
+    try {
+      const res = await fetch(`${this.config.apiBaseUrl}/api/v1/discover/tonight`);
+      if (!res.ok) return "Failed to fetch tonight's events.";
+      const data = await res.json();
+
+      if (!data.events?.length) {
+        return "No events happening tonight. Try \"this week\" or \"categories\".";
+      }
+
+      return formatEventList(data.events, "Tonight's Events");
+    } catch {
+      return "Failed to fetch tonight's events.";
+    }
+  }
+
+  private async weekEvents(): Promise<string> {
+    if (!this.config) return "Not configured.";
+
+    try {
+      const now = new Date();
+      const endOfWeek = new Date(now);
+      endOfWeek.setDate(endOfWeek.getDate() + 7);
+
+      const res = await fetch(`${this.config.apiBaseUrl}/api/v1/discover`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          startDate: now.toISOString().slice(0, 10),
+          endDate: endOfWeek.toISOString().slice(0, 10),
+          limit: 15,
+        }),
+      });
+
+      if (!res.ok) return "Failed to fetch this week's events.";
+      const data = await res.json();
+
+      if (!data.events?.length) {
+        return "No events this week. Try \"categories\" to browse all events.";
+      }
+
+      return formatEventList(data.events, "This Week's Events");
+    } catch {
+      return "Failed to fetch this week's events.";
+    }
+  }
+
+  private async freeEvents(): Promise<string> {
+    if (!this.config) return "Not configured.";
+
+    try {
+      const res = await fetch(`${this.config.apiBaseUrl}/api/v1/discover`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ freeOnly: true, limit: 10 }),
+      });
+
+      if (!res.ok) return "Failed to fetch free events.";
+      const data = await res.json();
+
+      if (!data.events?.length) {
+        return "No free events found. Try \"categories\" to browse all events.";
+      }
+
+      return formatEventList(data.events, "Free Events");
+    } catch {
+      return "Failed to fetch free events.";
+    }
   }
 }
 
@@ -119,7 +281,7 @@ export class EGatorPlugin implements FlowBPlugin, EventProvider {
 // Shared formatting
 // ============================================================================
 
-export function formatEventList(events: EventResult[], title: string): string {
+export function formatEventList(events: any[], title: string): string {
   const lines: string[] = [`**${title}** (${events.length})\n`];
 
   for (const e of events) {
@@ -132,32 +294,34 @@ export function formatEventList(events: EventResult[], title: string): string {
       minute: "2-digit",
     });
 
-    lines.push(`**${e.title}**`);
-    lines.push(`${dateStr}`);
+    const catEmoji = e.mainCategoryEmoji || "📅";
+    lines.push(`${catEmoji} **${e.title}**`);
+    lines.push(`🗓 ${dateStr}`);
 
-    if (e.isVirtual) {
-      lines.push(`Online`);
-    } else if (e.locationName) {
-      lines.push(`${e.locationName}${e.locationCity ? `, ${e.locationCity}` : ""}`);
+    if (e.isVirtual || e.isOnline) {
+      lines.push(`🌐 Online`);
+    } else if (e.venue?.name || e.locationName) {
+      lines.push(`📍 ${e.venue?.name || e.locationName}${e.venue?.city || e.locationCity ? `, ${e.venue?.city || e.locationCity}` : ""}`);
     }
 
-    if ((e as any).organizer) {
-      lines.push(`by ${(e as any).organizer}`);
+    if (e.organizer?.name || e.organizer) {
+      const orgName = typeof e.organizer === "string" ? e.organizer : e.organizer?.name;
+      if (orgName) lines.push(`👤 ${orgName}`);
     }
 
-    if ((e as any).categories?.length) {
-      lines.push(`${(e as any).categories.join(", ")}`);
-    }
-
+    const meta: string[] = [];
     if (e.isFree) {
-      lines.push(`FREE`);
-    } else if (e.price) {
-      lines.push(`$${e.price}`);
+      meta.push("🆓 Free");
+    } else if (e.price?.min) {
+      meta.push(`💵 $${e.price.min}${e.price.max > e.price.min ? "-$" + e.price.max : ""}`);
     }
-
-    if ((e as any).attendeeCount) {
-      lines.push(`${(e as any).attendeeCount} attending`);
+    if (e.attendeeCount) {
+      meta.push(`👥 ${e.attendeeCount}`);
     }
+    if (e.mainCategoryLabel) {
+      meta.push(e.mainCategoryLabel);
+    }
+    if (meta.length) lines.push(meta.join(" | "));
 
     if (e.url) {
       lines.push(`${e.url}`);

@@ -1,0 +1,14 @@
+app = 'flowb-telegram'
+primary_region = 'dfw'
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[env]
+  API_BASE_URL = 'https://egator-api.fly.dev'
+
+# No HTTP service - this is a polling bot, not a web server
+# Just needs to stay running
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '256mb'

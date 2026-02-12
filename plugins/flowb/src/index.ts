@@ -102,7 +102,12 @@ function showHelp(): string {
     "",
     "**Events**",
     "- **events** - Discover upcoming events",
-    '- **events in [city]** - Events in a specific city',
+    "- **categories** - Browse by category (DeFi, AI, Infra, etc.)",
+    "- **browse [category]** - Events in a category",
+    "- **tonight** - Tonight's events",
+    "- **week** - This week's events",
+    "- **free** - Free events only",
+    "- **search [query]** - Search events",
     "",
   ];
 
@@ -141,6 +146,11 @@ function showHelp(): string {
 const ACTION_POINT_MAP: Record<string, PointAction> = {
   events: PointAction.DISCOVER_EVENTS,
   search: PointAction.SEARCH_EVENTS,
+  categories: PointAction.DISCOVER_EVENTS,
+  browse: PointAction.DISCOVER_EVENTS,
+  tonight: PointAction.DISCOVER_EVENTS,
+  week: PointAction.DISCOVER_EVENTS,
+  free: PointAction.DISCOVER_EVENTS,
   help: PointAction.ASK,
   stats: PointAction.CHECK_STATS,
   challenges: PointAction.CHECK_CHALLENGES,
@@ -252,6 +262,11 @@ export default function register(api: any) {
           "leaderboard",
           // eGator actions
           "search",
+          "categories",
+          "browse",
+          "tonight",
+          "week",
+          "free",
           // DANZ additional
           "my-events",
           // Points actions
@@ -283,7 +298,12 @@ export default function register(api: any) {
 
 EVENTS:
 - events: Discover upcoming events from all sources
-- events in [city]: Events in a specific city
+- categories: Browse events by category (DeFi, AI, Infra, Build, Capital, Social, Wellness, Privacy, Art)
+- browse [category]: See events in a category (e.g. "browse defi", "browse ai")
+- tonight: Events happening tonight
+- week: Events this week
+- free: Free events only
+- search [query]: Search events by keyword
 
 DANZ.NOW (dance community):
 - signup: Connect your DANZ.Now account
@@ -297,8 +317,6 @@ POINTS:
 - points: Check your FlowB points balance and milestone
 - referral: Get your referral link to share with friends
 
-OTHER:
-- search: Search events across all sources
 - help: Show all commands`,
     inputSchema: toolSchema,
     parameters: toolSchema,
