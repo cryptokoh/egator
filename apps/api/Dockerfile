@@ -11,19 +11,18 @@ COPY packages/database/package.json ./packages/database/
 COPY packages/adapters/package.json ./packages/adapters/
 COPY packages/ai/package.json ./packages/ai/
 
-# Install dependencies
-RUN npm ci --workspace=@aiegator/api --include-workspace-root
+# Install ALL workspace dependencies
+RUN npm ci --include-workspace-root
 
 # Copy source files
 COPY tsconfig.base.json ./
 COPY apps/api ./apps/api
 COPY packages ./packages
 
-# Build
+# Build packages in dependency order
 RUN npm run build --workspace=@aiegator/shared
 RUN npm run build --workspace=@aiegator/database
 RUN npm run build --workspace=@aiegator/adapters
-RUN npm run build --workspace=@aiegator/ai
 RUN npm run build --workspace=@aiegator/api
 
 # Production stage
@@ -40,6 +39,7 @@ RUN adduser --system --uid 1001 aiegator
 # Copy built files
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
+COPY --from=builder /app/apps/api/public ./apps/api/public
 COPY --from=builder /app/apps/api/package.json ./apps/api/
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 COPY --from=builder /app/packages/shared/package.json ./packages/shared/
@@ -47,12 +47,10 @@ COPY --from=builder /app/packages/database/dist ./packages/database/dist
 COPY --from=builder /app/packages/database/package.json ./packages/database/
 COPY --from=builder /app/packages/adapters/dist ./packages/adapters/dist
 COPY --from=builder /app/packages/adapters/package.json ./packages/adapters/
-COPY --from=builder /app/packages/ai/dist ./packages/ai/dist
-COPY --from=builder /app/packages/ai/package.json ./packages/ai/
 COPY --from=builder /app/package.json ./
 
 USER aiegator
 
 EXPOSE 3000
 
-CMD ["node", "apps/api/dist/index.js"]
+CMD ["node", "apps/api/dist/server.js"]

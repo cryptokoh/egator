@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@aiegator/shared": "*",
+    "@supabase/supabase-js": "^2.95.3",
     "axios": "^1.6.0",
     "cheerio": "^1.0.0-rc.12",
     "p-queue": "^8.0.0",
