@@ -8,7 +8,11 @@ primary_region = 'dfw'
   API_BASE_URL = 'https://egator-api.fly.dev'
 
 # No HTTP service - this is a polling bot, not a web server
-# Just needs to stay running
+# CRITICAL: Only 1 instance allowed — multiple pollers = double responses
+[deploy]
+  strategy = 'immediate'
+
 [[vm]]
   size = 'shared-cpu-1x'
   memory = '256mb'
+  count = 1
