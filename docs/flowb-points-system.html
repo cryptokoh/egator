@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FlowB Points System - Design Document</title>
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --bg-elevated: #12121a;
+      --bg-card: #1a1a25;
+      --border: #2a2a3a;
+      --text: #e8e6f0;
+      --text-secondary: #9896a8;
+      --accent: #f97316;
+      --accent-soft: rgba(249, 115, 22, 0.15);
+      --green: #22c55e;
+      --blue: #3b82f6;
+      --purple: #a855f7;
+      --pink: #ec4899;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 0;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 4rem 2rem;
+      text-align: center;
+    }
+
+    .hero h1 {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      background: linear-gradient(135deg, var(--accent), var(--pink));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero .subtitle {
+      color: var(--text-secondary);
+      font-size: 1.1rem;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    .hero .badge {
+      display: inline-block;
+      margin-top: 1rem;
+      padding: 0.25rem 0.75rem;
+      background: var(--accent-soft);
+      color: var(--accent);
+      border-radius: 999px;
+      font-size: 0.85rem;
+      font-weight: 500;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    section {
+      margin-bottom: 3rem;
+    }
+
+    h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    h3 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin: 1.5rem 0 0.75rem;
+      color: var(--accent);
+    }
+
+    p {
+      color: var(--text-secondary);
+      margin-bottom: 1rem;
+    }
+
+    .principles {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1rem;
+      margin: 1.5rem 0;
+    }
+
+    .principle-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+    }
+
+    .principle-card .icon {
+      font-size: 1.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .principle-card h4 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 0.35rem;
+    }
+
+    .principle-card p {
+      font-size: 0.875rem;
+      margin: 0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.9rem;
+    }
+
+    thead {
+      background: var(--bg-card);
+    }
+
+    th {
+      text-align: left;
+      padding: 0.75rem 1rem;
+      font-weight: 600;
+      color: var(--text);
+      border-bottom: 2px solid var(--border);
+    }
+
+    td {
+      padding: 0.6rem 1rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+
+    tr:hover td {
+      background: rgba(255,255,255,0.02);
+    }
+
+    .pts {
+      color: var(--green);
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .cap {
+      color: var(--text-secondary);
+      font-size: 0.8rem;
+    }
+
+    .category-tag {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+
+    .cat-interaction { background: rgba(59, 130, 246, 0.15); color: var(--blue); }
+    .cat-engagement { background: rgba(168, 85, 247, 0.15); color: var(--purple); }
+    .cat-social { background: rgba(236, 72, 153, 0.15); color: var(--pink); }
+    .cat-loyalty { background: rgba(249, 115, 22, 0.15); color: var(--accent); }
+    .cat-firsttime { background: rgba(34, 197, 94, 0.15); color: var(--green); }
+
+    .milestone-row {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin-bottom: 0.75rem;
+    }
+
+    .milestone-pts {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--accent);
+      min-width: 60px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .milestone-info h4 {
+      font-weight: 600;
+      font-size: 1rem;
+    }
+
+    .milestone-info p {
+      font-size: 0.85rem;
+      margin: 0;
+      color: var(--text-secondary);
+      font-style: italic;
+    }
+
+    .notification-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+      margin: 1rem 0;
+    }
+
+    .notification-box h4 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    .notification-box .label {
+      display: inline-block;
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      margin-right: 0.5rem;
+    }
+
+    .label-subtle { background: rgba(34, 197, 94, 0.15); color: var(--green); }
+    .label-gentle { background: rgba(59, 130, 246, 0.15); color: var(--blue); }
+    .label-minimal { background: rgba(168, 85, 247, 0.15); color: var(--purple); }
+
+    code {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.85em;
+      color: var(--accent);
+    }
+
+    .code-block {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 0.85rem;
+      line-height: 1.5;
+      overflow-x: auto;
+      color: var(--text-secondary);
+      margin: 1rem 0;
+      white-space: pre;
+    }
+
+    .flow-diagram {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin: 1.5rem 0;
+    }
+
+    .flow-step {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .flow-step .number {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--accent-soft);
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .flow-step .text {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+
+    .flow-arrow {
+      margin-left: 13px;
+      color: var(--border);
+      font-size: 0.8rem;
+    }
+
+    .phase-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .phase-card .phase-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .phase-card .phase-number {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
+
+    .phase-card h4 {
+      font-size: 1.05rem;
+      font-weight: 600;
+    }
+
+    .phase-card ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .phase-card li {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      padding: 0.25rem 0;
+      padding-left: 1.5rem;
+      position: relative;
+    }
+
+    .phase-card li::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0.65rem;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--border);
+    }
+
+    .referral-flow {
+      background: linear-gradient(135deg, rgba(236, 72, 153, 0.05), rgba(249, 115, 22, 0.05));
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin: 1.5rem 0;
+    }
+
+    .referral-flow h4 {
+      margin-bottom: 1rem;
+    }
+
+    .footer {
+      text-align: center;
+      padding: 2rem;
+      border-top: 1px solid var(--border);
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+    }
+
+    @media (max-width: 640px) {
+      .hero { padding: 2.5rem 1.5rem; }
+      .hero h1 { font-size: 1.75rem; }
+      .container { padding: 1.5rem; }
+      .principles { grid-template-columns: 1fr; }
+      table { font-size: 0.8rem; }
+      th, td { padding: 0.5rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="hero">
+    <h1>FlowB Points System</h1>
+    <p class="subtitle">A thoughtful, cross-platform rewards system that respects user attention and encourages organic engagement with the FlowB ecosystem.</p>
+    <span class="badge">Design Document v1.0</span>
+  </div>
+
+  <div class="container">
+
+    <!-- Core Philosophy -->
+    <section>
+      <h2>Core Philosophy</h2>
+      <div class="principles">
+        <div class="principle-card">
+          <div class="icon">&#127793;</div>
+          <h4>Organic Growth</h4>
+          <p>Points reward natural usage patterns. No dark patterns, no FOMO tactics, no aggressive conversion.</p>
+        </div>
+        <div class="principle-card">
+          <div class="icon">&#128274;</div>
+          <h4>Privacy-First</h4>
+          <p>Anonymous users can accumulate points freely. Registration is optional and gently suggested, never forced.</p>
+        </div>
+        <div class="principle-card">
+          <div class="icon">&#127760;</div>
+          <h4>Cross-Platform</h4>
+          <p>Earn points everywhere: FlowB chat (Telegram, Discord, OpenClaw), web UI, social shares, and referrals.</p>
+        </div>
+        <div class="principle-card">
+          <div class="icon">&#9878;&#65039;</div>
+          <h4>Balanced Economy</h4>
+          <p>Daily caps prevent inflation. First-time bonuses reward exploration. Streaks reward consistency without punishing absence.</p>
+        </div>
+      </div>
+      <p><strong>Key distinction:</strong> FlowB Points are completely separate from DANZ XP. Different system, different purpose. FlowB Points are platform-level engagement currency across the entire ecosystem.</p>
+    </section>
+
+    <!-- Point Economy -->
+    <section>
+      <h2>Point Economy</h2>
+
+      <h3>Interaction Points</h3>
+      <p>Awarded for using FlowB's core features.</p>
+      <table>
+        <thead>
+          <tr><th>Action</th><th>Points</th><th>Daily Cap</th><th>Where</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Any FlowB interaction (ask, help)</td>
+            <td class="pts">+1</td>
+            <td class="cap">20/day</td>
+            <td>Chat</td>
+          </tr>
+          <tr>
+            <td>Discover events</td>
+            <td class="pts">+2</td>
+            <td class="cap">10/day</td>
+            <td>Chat + Web</td>
+          </tr>
+          <tr>
+            <td>Search events</td>
+            <td class="pts">+3</td>
+            <td class="cap">10/day</td>
+            <td>Chat + Web</td>
+          </tr>
+          <tr>
+            <td>View event details</td>
+            <td class="pts">+2</td>
+            <td class="cap">15/day</td>
+            <td>Web</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Engagement Points</h3>
+      <p>Deeper involvement with the platform.</p>
+      <table>
+        <thead>
+          <tr><th>Action</th><th>Points</th><th>Cap</th><th>Where</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Complete verification (link account)</td>
+            <td class="pts">+25</td>
+            <td class="cap">once</td>
+            <td>Chat</td>
+          </tr>
+          <tr>
+            <td>Check stats / challenges / leaderboard</td>
+            <td class="pts">+1</td>
+            <td class="cap">3/day each</td>
+            <td>Chat</td>
+          </tr>
+          <tr>
+            <td>Set location</td>
+            <td class="pts">+2</td>
+            <td class="cap">1/day</td>
+            <td>Web</td>
+          </tr>
+          <tr>
+            <td>Select mood</td>
+            <td class="pts">+1</td>
+            <td class="cap">7/day</td>
+            <td>Web</td>
+          </tr>
+          <tr>
+            <td>Use filter</td>
+            <td class="pts">+1</td>
+            <td class="cap">5/day</td>
+            <td>Web</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Social Points</h3>
+      <p>Spreading the word and building community.</p>
+      <table>
+        <thead>
+          <tr><th>Action</th><th>Points</th><th>Cap</th><th>Notes</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Share an event (generate ref link)</td>
+            <td class="pts">+5</td>
+            <td class="cap">5/day</td>
+            <td>Web Share API or clipboard</td>
+          </tr>
+          <tr>
+            <td>Someone clicks your ref link</td>
+            <td class="pts">+3</td>
+            <td class="cap">20/day</td>
+            <td>Passive reward</td>
+          </tr>
+          <tr>
+            <td>Referred user registers</td>
+            <td class="pts">+15</td>
+            <td class="cap">none</td>
+            <td>Both parties rewarded</td>
+          </tr>
+          <tr>
+            <td>Register via someone's ref link</td>
+            <td class="pts">+10</td>
+            <td class="cap">once</td>
+            <td>Welcome bonus</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Loyalty Points</h3>
+      <p>Rewarding consistent engagement without punishing breaks.</p>
+      <table>
+        <thead>
+          <tr><th>Action</th><th>Points</th><th>Trigger</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Daily interaction bonus</td>
+            <td class="pts">+5</td>
+            <td class="cap">First action each day</td>
+          </tr>
+          <tr>
+            <td>3-day streak bonus</td>
+            <td class="pts">+10</td>
+            <td class="cap">3 consecutive days</td>
+          </tr>
+          <tr>
+            <td>7-day streak bonus</td>
+            <td class="pts">+25</td>
+            <td class="cap">7 consecutive days</td>
+          </tr>
+          <tr>
+            <td>30-day streak bonus</td>
+            <td class="pts">+100</td>
+            <td class="cap">30 consecutive days</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>First-Time Bonuses</h3>
+      <p>One-time rewards for trying things for the first time.</p>
+      <table>
+        <thead>
+          <tr><th>Action</th><th>Points</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>First search</td><td class="pts">+5</td></tr>
+          <tr><td>First event click</td><td class="pts">+5</td></tr>
+          <tr><td>First mood selection</td><td class="pts">+3</td></tr>
+          <tr><td>First filter use</td><td class="pts">+3</td></tr>
+          <tr><td>First platform (each new one)</td><td class="pts">+10</td></tr>
+          <tr><td>First share</td><td class="pts">+5</td></tr>
+        </tbody>
+      </table>
+
+      <p style="margin-top: 1.5rem; padding: 1rem; background: var(--bg-card); border-radius: 8px; border-left: 3px solid var(--accent);">
+        <strong>Economy balance:</strong> A highly active user earns ~120-150 pts/day at cap. First milestone (25 pts) reachable in one session. 100 pts in about a week. 1000 pts in 2-3 months of regular use.
+      </p>
+    </section>
+
+    <!-- Milestones -->
+    <section>
+      <h2>Milestones</h2>
+      <p>Named levels that give users a sense of progression and identity.</p>
+
+      <div class="milestone-row">
+        <div class="milestone-pts">25</div>
+        <div class="milestone-info">
+          <h4>Explorer</h4>
+          <p>"You're getting the hang of this!"</p>
+        </div>
+      </div>
+      <div class="milestone-row">
+        <div class="milestone-pts">50</div>
+        <div class="milestone-info">
+          <h4>Seeker</h4>
+          <p>"You've found your rhythm."</p>
+        </div>
+      </div>
+      <div class="milestone-row">
+        <div class="milestone-pts">100</div>
+        <div class="milestone-info">
+          <h4>Pathfinder</h4>
+          <p>"100 points - you know your way around."</p>
+        </div>
+      </div>
+      <div class="milestone-row">
+        <div class="milestone-pts">250</div>
+        <div class="milestone-info">
+          <h4>Navigator</h4>
+          <p>"A true navigator of vibes."</p>
+        </div>
+      </div>
+      <div class="milestone-row">
+        <div class="milestone-pts">500</div>
+        <div class="milestone-info">
+          <h4>Trailblazer</h4>
+          <p>"Half a thousand. Impressive."</p>
+        </div>
+      </div>
+      <div class="milestone-row">
+        <div class="milestone-pts">1,000</div>
+        <div class="milestone-info">
+          <h4>Legend</h4>
+          <p>"Welcome to the 1K club."</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Notification Philosophy -->
+    <section>
+      <h2>Notification Philosophy</h2>
+      <p>The points system should feel like a pleasant surprise, never an interruption. Different contexts get different treatment.</p>
+
+      <div class="notification-box">
+        <h4><span class="label label-subtle">Subtle</span> FlowB Chat (DM)</h4>
+        <p>A small footer appended to the normal response. Never a separate message.</p>
+        <div class="code-block">[FlowB's normal response to your question]
+
+---
++2 pts  |  47 total</div>
+        <p>At milestones, a slightly expanded footer:</p>
+        <div class="code-block">[FlowB's normal response]
+
+---
++3 pts  |  100 total  Pathfinder!</div>
+      </div>
+
+      <div class="notification-box">
+        <h4><span class="label label-minimal">Minimal</span> FlowB Chat (Group)</h4>
+        <p>Even more restrained in public contexts. Milestone celebrations DM the user if the platform supports it. Otherwise, a single quiet line.</p>
+        <div class="code-block">[FlowB's response to the group]
+
+ 100 pts - nice!</div>
+      </div>
+
+      <div class="notification-box">
+        <h4><span class="label label-gentle">Gentle</span> Web UI</h4>
+        <p><strong>Micro-awards:</strong> Existing toast popup in bottom-right corner (+2 Event explored). Quick, unobtrusive, auto-dismisses in 2 seconds.</p>
+        <p><strong>Milestones:</strong> Thin dismissible banner below the header. Auto-dismisses after 8 seconds or on tap. One line of celebratory text.</p>
+        <p><strong>Anonymous claim prompt:</strong> A bottom-sheet that slides up. Only at milestones 25 and 100. "Maybe later" is the default/prominent button. "Register" is the secondary action. Each prompt shown only once. Never a blocking modal.</p>
+      </div>
+    </section>
+
+    <!-- Anonymous to Registered Flow -->
+    <section>
+      <h2>Anonymous to Registered Flow</h2>
+      <p>Users can enjoy the platform without signing up. Points accumulate quietly, and registration is gently suggested at key moments.</p>
+
+      <div class="flow-diagram">
+        <div class="flow-step">
+          <div class="number">1</div>
+          <div class="text"><strong>First visit</strong> - Anonymous UUID generated, stored in browser. Points start accumulating in localStorage.</div>
+        </div>
+        <div class="flow-arrow">&#8595;</div>
+        <div class="flow-step">
+          <div class="number">2</div>
+          <div class="text"><strong>25 points</strong> - Gentle bottom-sheet appears once: "You've been exploring! Register to save your progress." Easily dismissed.</div>
+        </div>
+        <div class="flow-arrow">&#8595;</div>
+        <div class="flow-step">
+          <div class="number">3</div>
+          <div class="text"><strong>100 points</strong> - Second (and final) prompt: "100 points earned. Create an account to keep them and unlock referral rewards."</div>
+        </div>
+        <div class="flow-arrow">&#8595;</div>
+        <div class="flow-step">
+          <div class="number">4</div>
+          <div class="text"><strong>Registration</strong> - All localStorage points transfer to the backend. One-time sync. Future points go directly to database.</div>
+        </div>
+        <div class="flow-arrow">&#8595;</div>
+        <div class="flow-step">
+          <div class="number">5</div>
+          <div class="text"><strong>Referral unlocked</strong> - Registered users get a unique referral code and can earn social points.</div>
+        </div>
+      </div>
+
+      <p style="color: var(--text-secondary); font-size: 0.9rem;">After dismissing both prompts, the user is never prompted again. The points badge in the header remains visible as a passive reminder that points exist.</p>
+    </section>
+
+    <!-- Referral System -->
+    <section>
+      <h2>Referral System</h2>
+
+      <div class="referral-flow">
+        <h4>How Referrals Work</h4>
+        <table>
+          <thead>
+            <tr><th>Event</th><th>Referrer Gets</th><th>New User Gets</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Someone clicks your ref link</td>
+              <td class="pts">+3 pts</td>
+              <td>Ref code stored in their browser</td>
+            </tr>
+            <tr>
+              <td>They register</td>
+              <td class="pts">+15 pts</td>
+              <td class="pts">+10 pts welcome bonus</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Referral Link Format</h3>
+      <p>Each registered user gets an 8-character alphanumeric referral code.</p>
+      <div class="code-block">https://aiegator.app/?ref=A7K2M9XP</div>
+
+      <h3>Share Buttons</h3>
+      <p>Event cards on the web get a share icon. When tapped:</p>
+      <div class="flow-diagram">
+        <div class="flow-step">
+          <div class="number">1</div>
+          <div class="text">Generate event URL with <code>?ref=CODE</code> if user is registered (plain URL if anonymous)</div>
+        </div>
+        <div class="flow-arrow">&#8595;</div>
+        <div class="flow-step">
+          <div class="number">2</div>
+          <div class="text">Use Web Share API if available (native share sheet), otherwise copy to clipboard</div>
+        </div>
+        <div class="flow-arrow">&#8595;</div>
+        <div class="flow-step">
+          <div class="number">3</div>
+          <div class="text">Award +5 share points, show toast confirmation</div>
+        </div>
+      </div>
+
+      <h3>FlowB Chat Referrals</h3>
+      <p>Users can ask FlowB for their referral link using the <code>referral</code> action:</p>
+      <div class="code-block">User: "referral"
+
+FlowB: Your Referral Link
+
+https://aiegator.app/?ref=A7K2M9XP
+
+Share this link! You'll earn +15 pts when someone registers,
+plus +3 pts each time someone clicks it.</div>
+    </section>
+
+    <!-- Streaks -->
+    <section>
+      <h2>Streak System</h2>
+      <p>Streaks reward consistency but don't punish breaks. Missing a day resets the counter, but accumulated points and milestone progress are never lost.</p>
+
+      <h3>How Streaks Work</h3>
+      <div class="flow-diagram">
+        <div class="flow-step">
+          <div class="number">1</div>
+          <div class="text">Each day's first interaction awards +5 daily login bonus and advances the streak</div>
+        </div>
+        <div class="flow-arrow">&#8595;</div>
+        <div class="flow-step">
+          <div class="number">2</div>
+          <div class="text">At 3, 7, and 30 consecutive days, bonus points are awarded automatically</div>
+        </div>
+        <div class="flow-arrow">&#8595;</div>
+        <div class="flow-step">
+          <div class="number">3</div>
+          <div class="text">Missing a day resets the streak counter to 0 (but all earned points remain)</div>
+        </div>
+        <div class="flow-arrow">&#8595;</div>
+        <div class="flow-step">
+          <div class="number">4</div>
+          <div class="text">Longest streak is tracked as a personal record</div>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr><th>Streak</th><th>Bonus</th><th>Cumulative from Streak</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Day 1</td><td class="pts">+5 daily</td><td>5 pts</td></tr>
+          <tr><td>Day 2</td><td class="pts">+5 daily</td><td>10 pts</td></tr>
+          <tr><td>Day 3</td><td class="pts">+5 daily + 10 streak</td><td>25 pts</td></tr>
+          <tr><td>Day 7</td><td class="pts">+5 daily + 25 streak</td><td>70 pts</td></tr>
+          <tr><td>Day 30</td><td class="pts">+5 daily + 100 streak</td><td>285 pts</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Technical Architecture -->
+    <section>
+      <h2>Technical Architecture</h2>
+
+      <h3>Where Points Live</h3>
+      <table>
+        <thead>
+          <tr><th>User Type</th><th>Storage</th><th>Sync</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Anonymous (web)</td>
+            <td>Browser localStorage</td>
+            <td>Transfers to DB on registration</td>
+          </tr>
+          <tr>
+            <td>Registered (web)</td>
+            <td>Supabase (via API)</td>
+            <td>Real-time</td>
+          </tr>
+          <tr>
+            <td>FlowB chat users</td>
+            <td>Supabase (direct)</td>
+            <td>Real-time</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Database Tables</h3>
+      <p><strong><code>flowb_points_ledger</code></strong> - Append-only audit trail of every point transaction. Columns: user_id, platform, action, points, metadata (JSONB), created_at.</p>
+      <p><strong><code>flowb_user_points</code></strong> - Aggregated balance per user+platform. Columns: total_points, referral_code, referred_by, current_streak, longest_streak, last_active_date, first_actions (JSONB), milestone_level.</p>
+      <p>All tables use the <code>flowb_</code> prefix for clean portability when migrating away from DANZ Supabase.</p>
+
+      <h3>New FlowB Actions</h3>
+      <table>
+        <thead>
+          <tr><th>Action</th><th>Description</th><th>Auth Required</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>points</code></td>
+            <td>Check your FlowB point balance, streak, and milestone</td>
+            <td>Yes (user_id)</td>
+          </tr>
+          <tr>
+            <td><code>referral</code></td>
+            <td>Get your unique referral link</td>
+            <td>Yes (registered)</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Cross-Platform Identity</h3>
+      <p>Points are tracked per <code>user_id + platform</code> pair. A user on Telegram and the same user on Discord have separate point balances. This is intentional for privacy. Future: the DANZ verification bridge can optionally unify identities if the user consents.</p>
+    </section>
+
+    <!-- Implementation Phases -->
+    <section>
+      <h2>Implementation Phases</h2>
+
+      <div class="phase-card">
+        <div class="phase-header">
+          <div class="phase-number">1</div>
+          <h4>Core Points Service + FlowB Integration</h4>
+        </div>
+        <ul>
+          <li>Database migration: create <code>flowb_points_ledger</code> and <code>flowb_user_points</code> tables</li>
+          <li>Extract shared Supabase helpers from DANZ plugin into reusable utility</li>
+          <li>Build <code>PointsService</code> class: award, balance, daily caps, first-time bonuses</li>
+          <li>Add point types and interfaces to FlowB type system</li>
+          <li>Hook points into FlowB's <code>execute()</code> handler with footer rendering</li>
+          <li>Register <code>points</code> and <code>referral</code> as new FlowB actions</li>
+        </ul>
+      </div>
+
+      <div class="phase-card">
+        <div class="phase-header">
+          <div class="phase-number">2</div>
+          <h4>Web Frontend Sync + Anonymous Accumulation</h4>
+        </div>
+        <ul>
+          <li>Evolve PointsProvider to dual-mode (localStorage + backend API)</li>
+          <li>Add anonymous UUID generation for web users</li>
+          <li>Build MilestonePrompt component (non-aggressive bottom-sheet)</li>
+          <li>Build MilestoneBanner component (dismissible celebration)</li>
+          <li>Add points API endpoints to the backend server</li>
+        </ul>
+      </div>
+
+      <div class="phase-card">
+        <div class="phase-header">
+          <div class="phase-number">3</div>
+          <h4>Referral System + Share Buttons</h4>
+        </div>
+        <ul>
+          <li>Implement referral code generation and tracking in PointsService</li>
+          <li>Add share button to EventCard with ref link generation</li>
+          <li>Handle <code>?ref=CODE</code> URL parameter on page load</li>
+          <li>Build referral click and signup reward flow</li>
+        </ul>
+      </div>
+
+      <div class="phase-card">
+        <div class="phase-header">
+          <div class="phase-number">4</div>
+          <h4>Streaks + Loyalty + Polish</h4>
+        </div>
+        <ul>
+          <li>Implement streak calculation and bonus logic</li>
+          <li>Add streak indicator to PointsBadge</li>
+          <li>Polish milestone banner animations</li>
+          <li>Test full cross-platform flow end-to-end</li>
+        </ul>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="footer">
+    <p>FlowB Points System Design Document | FlowBond</p>
+  </div>
+
+</body>
+</html>

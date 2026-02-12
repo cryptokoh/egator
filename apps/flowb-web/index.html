@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FlowB — ETHDenver 2026 Events</title>
+  <meta name="description" content="Discover 100+ ETHDenver 2026 side events, hackathons, parties, and meetups. Browse by DeFi, AI, Infrastructure, and more.">
+  <meta property="og:title" content="FlowB — ETHDenver 2026 Events">
+  <meta property="og:description" content="Your guide to every side event at ETHDenver 2026">
+  <meta property="og:type" content="website">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="container header-inner">
+      <a href="/" class="logo">
+        <span class="logo-icon">F</span>
+        <span class="logo-text">FlowB</span>
+      </a>
+      <div class="header-meta">
+        <span class="event-badge">ETHDenver 2026</span>
+        <span class="event-dates">Feb 13 — 20</span>
+        <!-- Points Badge -->
+        <div class="points-badge" id="pointsBadge" title="Your FlowB Points">
+          <div class="points-ring-wrap">
+            <svg class="points-ring" width="36" height="36" viewBox="0 0 36 36">
+              <circle cx="18" cy="18" r="16" fill="none" stroke="currentColor" stroke-width="2.5" class="points-ring-track"/>
+              <circle cx="18" cy="18" r="16" fill="none" stroke="currentColor" stroke-width="2.5" class="points-ring-progress" id="pointsRingProgress"
+                stroke-linecap="round" stroke-dasharray="100.53" stroke-dashoffset="100.53" transform="rotate(-90 18 18)"/>
+            </svg>
+            <span class="points-flame">&#x1F525;</span>
+          </div>
+          <span class="points-count" id="pointsCount">0</span>
+          <div class="points-streak hidden" id="pointsStreak">
+            <span class="streak-icon" id="streakIcon"></span>
+            <span class="streak-count" id="streakCount"></span>
+          </div>
+          <!-- Hover tooltip -->
+          <div class="points-tooltip" id="pointsTooltip">
+            <p class="points-tooltip-title" id="tooltipTitle">0 pts</p>
+            <div class="points-tooltip-progress" id="tooltipProgress"></div>
+            <p class="points-tooltip-streak hidden" id="tooltipStreak"></p>
+          </div>
+        </div>
+        <!-- Auth Button -->
+        <button class="auth-btn" id="authBtn">Sign In</button>
+        <!-- User Menu (logged in) -->
+        <div class="user-menu hidden" id="userMenu">
+          <div class="user-avatar" id="userAvatar">?</div>
+          <div class="user-dropdown hidden" id="userDropdown">
+            <div class="user-dropdown-header" id="userDropdownHeader"></div>
+            <button class="user-dropdown-item" id="logoutBtn">Sign Out</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Milestone Banner -->
+  <div class="milestone-banner hidden" id="milestoneBanner">
+    <div class="container">
+      <div class="milestone-inner">
+        <div class="milestone-shimmer"></div>
+        <div class="milestone-content">
+          <div class="milestone-icon-wrap">&#x1F525;</div>
+          <div>
+            <p class="milestone-title" id="milestoneTitle"></p>
+            <p class="milestone-msg" id="milestoneMsg"></p>
+          </div>
+        </div>
+        <button class="milestone-close" id="milestoneClose">&times;</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="container">
+      <h1>Discover ETHDenver<br><span class="gradient-text">Side Events</span></h1>
+      <p class="hero-sub">100+ hackathons, parties, meetups, and summits — all in one place.</p>
+
+      <!-- Search -->
+      <div class="search-bar">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+        </svg>
+        <input type="text" id="searchInput" placeholder="Search events, organizers, venues..." autocomplete="off">
+        <button id="searchClear" class="search-clear hidden">&times;</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Categories -->
+  <section class="categories-section">
+    <div class="container">
+      <div class="categories-row" id="categoriesRow">
+        <button class="cat-chip active" data-cat="all">All</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Quick Filters -->
+  <section class="filters-section">
+    <div class="container">
+      <div class="filters-row">
+        <button class="filter-pill" data-filter="tonight">Tonight</button>
+        <button class="filter-pill" data-filter="week">This Week</button>
+        <button class="filter-pill" data-filter="free">Free Only</button>
+      </div>
+      <div class="results-meta" id="resultsMeta"></div>
+    </div>
+  </section>
+
+  <!-- Events Grid -->
+  <main class="events-section">
+    <div class="container">
+      <div class="events-grid" id="eventsGrid">
+        <div class="skeleton-card"></div>
+        <div class="skeleton-card"></div>
+        <div class="skeleton-card"></div>
+        <div class="skeleton-card"></div>
+        <div class="skeleton-card"></div>
+        <div class="skeleton-card"></div>
+      </div>
+      <div class="load-more-wrap" id="loadMoreWrap" style="display:none">
+        <button class="load-more-btn" id="loadMoreBtn">Show More</button>
+      </div>
+      <div class="empty-state hidden" id="emptyState">
+        <div class="empty-icon">&#x1F50D;</div>
+        <p>No events found. Try a different category or search.</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div class="footer-left">
+        <span class="logo-icon small">F</span>
+        <span>FlowB</span>
+        <span class="footer-dot"></span>
+        <span class="footer-muted">Powered by eGator</span>
+      </div>
+      <div class="footer-right">
+        <a href="https://t.me/FlowBBot" target="_blank" class="footer-link">Telegram Bot</a>
+        <a href="https://egator-api.fly.dev/api" target="_blank" class="footer-link">API</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Points Toast Container -->
+  <div class="points-toasts" id="pointsToasts"></div>
+
+  <!-- Chat With FlowB Button -->
+  <button class="chat-with-flowb" id="chatWithFlowB">
+    <span class="chat-with-flowb-icon">
+      <span class="logo-icon small">F</span>
+    </span>
+    <span class="chat-with-flowb-label">Chat With FlowB</span>
+    <span class="chat-with-flowb-dot"></span>
+  </button>
+
+  <!-- FlowB Full Chat Modal -->
+  <div class="flowb-chat-modal hidden" id="flowbChatModal">
+    <div class="flowb-chat-backdrop" id="flowbChatBackdrop"></div>
+    <div class="flowb-chat-window">
+      <!-- Chat Header -->
+      <div class="flowb-chat-header">
+        <div class="flowb-chat-header-left">
+          <span class="logo-icon">F</span>
+          <div class="flowb-chat-header-info">
+            <span class="flowb-chat-header-title">FlowB</span>
+            <span class="flowb-chat-header-sub">ETHDenver 2026 AI Guide</span>
+          </div>
+        </div>
+        <div class="flowb-chat-header-right">
+          <span class="flowb-chat-status" id="flowbStatus">
+            <span class="flowb-status-dot"></span>
+            <span id="flowbStatusText">connected</span>
+          </span>
+          <button class="flowb-chat-close" id="flowbChatClose">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Chat Body -->
+      <div class="flowb-chat-body" id="flowbChatBody">
+        <!-- Welcome State -->
+        <div class="flowb-welcome" id="flowbWelcome">
+          <div class="flowb-welcome-logo">
+            <span class="logo-icon" style="width:56px;height:56px;font-size:1.5rem;border-radius:14px">F</span>
+          </div>
+          <h2 class="flowb-welcome-title">Hey, I'm FlowB</h2>
+          <p class="flowb-welcome-sub">Your AI guide to ETHDenver 2026. Ask me about events, parties, hackathons, or anything happening in Denver this week.</p>
+          <div class="flowb-suggestions" id="flowbSuggestions">
+            <button class="flowb-suggestion" data-msg="What's happening tonight?">What's happening tonight?</button>
+            <button class="flowb-suggestion" data-msg="Show me free DeFi events">Show me free DeFi events</button>
+            <button class="flowb-suggestion" data-msg="Find AI and agent events">Find AI and agent events</button>
+            <button class="flowb-suggestion" data-msg="What are the best parties this week?">Best parties this week?</button>
+          </div>
+        </div>
+
+        <!-- Messages Container -->
+        <div class="flowb-messages" id="flowbMessages"></div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="flowb-quick-bar" id="flowbQuickBar">
+        <button class="flowb-quick-chip" data-msg="categories">Categories</button>
+        <button class="flowb-quick-chip" data-msg="tonight">Tonight</button>
+        <button class="flowb-quick-chip" data-msg="free events">Free</button>
+        <button class="flowb-quick-chip" data-msg="browse defi">DeFi</button>
+        <button class="flowb-quick-chip" data-msg="browse ai">AI</button>
+        <button class="flowb-quick-chip" data-msg="browse social">Parties</button>
+        <button class="flowb-quick-chip" data-msg="points">My Points</button>
+      </div>
+
+      <!-- Input Area -->
+      <form class="flowb-input-area" id="flowbChatForm">
+        <div class="flowb-input-wrap">
+          <textarea id="flowbChatInput" placeholder="Ask FlowB anything about ETHDenver..." rows="1" autocomplete="off"></textarea>
+          <button type="submit" class="flowb-send-btn" id="flowbSendBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+              <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            </svg>
+          </button>
+        </div>
+        <p class="flowb-input-hint">FlowB is powered by OpenClaw. Responses may take a moment.</p>
+      </form>
+    </div>
+  </div>
+
+  <!-- Login Modal -->
+  <div class="login-modal hidden" id="loginModal">
+    <div class="login-backdrop" id="loginBackdrop"></div>
+    <div class="login-card">
+      <button class="login-close" id="loginClose">&times;</button>
+      <div class="login-icon-wrap">
+        <span class="logo-icon" style="width:48px;height:48px;font-size:1.5rem">F</span>
+      </div>
+      <h2 class="login-title">Sign in to FlowB</h2>
+      <p class="login-sub">Save your points, unlock referrals, and sync across devices.</p>
+      <a class="login-btn login-btn-danz" id="loginDanzBtn" href="https://danz.now/login?redirectTo=https://flowb.netlify.app/callback" target="_blank">
+        <span class="login-btn-icon">D</span>
+        Continue with DANZ
+      </a>
+      <button class="login-btn login-btn-wallet" id="loginWalletBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><rect x="1" y="4" width="22" height="16" rx="2"/><path d="M1 10h22"/></svg>
+        Connect Wallet
+      </button>
+      <p class="login-footer-text">By signing in, you agree to our <a href="#">Terms</a> and <a href="#">Privacy Policy</a>.</p>
+    </div>
+  </div>
+
+  <script src="points.js"></script>
+  <script src="auth.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
