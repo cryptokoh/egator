@@ -76,13 +76,17 @@ export class EGatorPlugin implements FlowBPlugin, EventProvider {
         startTime: e.startTime,
         endTime: e.endTime,
         locationName: e.venue?.name,
-        locationCity: e.venue?.city || e.neighborhoodName,
+        locationCity: e.venue?.city,
         price: e.price?.min,
-        isFree: !e.price?.min,
-        isVirtual: false,
-        danceStyles: e.vibe?.danceTags || [],
+        isFree: e.isFree ?? !e.price?.min,
+        isVirtual: e.isOnline || false,
+        danceStyles: e.tags || [],
         source: e.source || "egator",
         url: e.url,
+        organizer: e.organizer?.name,
+        categories: e.categories || [],
+        attendeeCount: e.attendeeCount,
+        imageUrl: e.imageUrl,
       }));
     } catch (err) {
       console.error("[egator] API fetch failed:", err);
@@ -137,8 +141,12 @@ export function formatEventList(events: EventResult[], title: string): string {
       lines.push(`${e.locationName}${e.locationCity ? `, ${e.locationCity}` : ""}`);
     }
 
-    if (e.danceStyles?.length) {
-      lines.push(`${e.danceStyles.slice(0, 3).join(", ")}`);
+    if ((e as any).organizer) {
+      lines.push(`by ${(e as any).organizer}`);
+    }
+
+    if ((e as any).categories?.length) {
+      lines.push(`${(e as any).categories.join(", ")}`);
     }
 
     if (e.isFree) {
@@ -147,8 +155,12 @@ export function formatEventList(events: EventResult[], title: string): string {
       lines.push(`$${e.price}`);
     }
 
-    if (e.source !== "egator") {
-      lines.push(`_via ${e.source}_`);
+    if ((e as any).attendeeCount) {
+      lines.push(`${(e as any).attendeeCount} attending`);
+    }
+
+    if (e.url) {
+      lines.push(`${e.url}`);
     }
 
     lines.push("");

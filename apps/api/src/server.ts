@@ -23,8 +23,91 @@ const luma = new LumaAdapter({
   calendarApiId: calendarIds,
 });
 
+// Fetch event detail from lu.ma for enrichment
+async function fetchEventDetail(eventApiId: string): Promise<any> {
+  try {
+    const res = await fetch(`https://api.lu.ma/event/get?event_api_id=${eventApiId}`);
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
+// Fetch details in batches with concurrency limit
+async function enrichEvents(events: any[]): Promise<any[]> {
+  const BATCH_SIZE = 10;
+  const enriched = [...events];
+
+  for (let i = 0; i < enriched.length; i += BATCH_SIZE) {
+    const batch = enriched.slice(i, i + BATCH_SIZE);
+    const details = await Promise.all(
+      batch.map(e => {
+        const apiId = e._eventApiId;
+        return apiId ? fetchEventDetail(apiId) : Promise.resolve(null);
+      })
+    );
+
+    for (let j = 0; j < batch.length; j++) {
+      const detail = details[j];
+      if (!detail) continue;
+
+      const event = detail.event || {};
+      const hosts = detail.hosts || [];
+      const ticketInfo = detail.ticket_info;
+      const categories = detail.categories || [];
+
+      // Merge enrichment data
+      if (event.description) {
+        enriched[i + j].description = event.description;
+      }
+      if (hosts.length > 0) {
+        enriched[i + j].organizer = {
+          name: hosts[0].name,
+          url: hosts[0].username ? `https://lu.ma/user/${hosts[0].username}` : null,
+          avatar: hosts[0].avatar_url || null,
+        };
+        if (hosts.length > 1) {
+          enriched[i + j].coHosts = hosts.slice(1).map((h: any) => ({
+            name: h.name,
+            url: h.username ? `https://lu.ma/user/${h.username}` : null,
+            avatar: h.avatar_url || null,
+          }));
+        }
+      }
+      if (ticketInfo) {
+        const isFree = ticketInfo.is_free ?? false;
+        const priceCents = ticketInfo.price?.cents;
+        const currency = ticketInfo.price?.currency?.toUpperCase() || 'USD';
+        enriched[i + j].price = isFree
+          ? { min: 0, max: 0, currency }
+          : priceCents
+            ? { min: priceCents / 100, max: ticketInfo.max_price ? ticketInfo.max_price / 100 : priceCents / 100, currency }
+            : null;
+        enriched[i + j].isFree = isFree;
+        enriched[i + j].spotsRemaining = ticketInfo.spots_remaining ?? null;
+        enriched[i + j].isSoldOut = ticketInfo.is_sold_out ?? false;
+      }
+      if (detail.guest_count) {
+        enriched[i + j].attendeeCount = detail.guest_count;
+      }
+      if (detail.ticket_count) {
+        enriched[i + j].capacity = detail.ticket_count;
+      }
+      if (categories.length > 0) {
+        enriched[i + j].categories = categories.map((c: any) => c.name);
+      }
+
+      // Clean up internal field
+      delete enriched[i + j]._eventApiId;
+    }
+  }
+
+  return enriched;
+}
+
 // Transform Luma normalized event to our API format
-function transformLumaEvent(normalized: any): any {
+function transformLumaEvent(normalized: any, eventApiId?: string): any {
   const startDate = normalized.startDate instanceof Date && !isNaN(normalized.startDate.getTime())
     ? normalized.startDate
     : new Date();
@@ -34,6 +117,7 @@ function transformLumaEvent(normalized: any): any {
 
   return {
     id: `luma-${normalized.sourceId}`,
+    _eventApiId: eventApiId, // used for enrichment, stripped later
     title: normalized.name,
     description: normalized.description,
     startTime: startDate.toISOString(),
@@ -47,8 +131,10 @@ function transformLumaEvent(normalized: any): any {
       max: normalized.priceMax,
       currency: normalized.currency || 'USD',
     } : normalized.isFree ? { min: 0, max: 0, currency: 'USD' } : null,
+    isFree: normalized.isFree ?? false,
     organizer: normalized.organizer,
     attendeeCount: normalized.attendeeCount,
+    categories: [],
     tags: normalized.tags || [],
     isOnline: normalized.isOnline,
     onlineUrl: normalized.onlineUrl,
@@ -56,8 +142,8 @@ function transformLumaEvent(normalized: any): any {
   };
 }
 
-// Fetch and transform Luma events
-async function fetchLumaEvents(limit = 50) {
+// Fetch, filter, enrich, and transform Luma events
+async function fetchLumaEvents(limit = 100) {
   if (!luma.isConfigured()) {
     console.log('[server] Luma not configured, no calendar IDs set');
     return [];
@@ -66,25 +152,34 @@ async function fetchLumaEvents(limit = 50) {
   try {
     const result = await luma.fetch({ limit });
 
-    return result.events.map(raw => {
+    // Filter out events without a valid sourceId (prevents luma-undefined)
+    const validEvents = result.events.filter(raw => raw.sourceId && raw.sourceId !== 'undefined');
+
+    const transformed = validEvents.map(raw => {
       const normalized = luma.normalize(raw);
-      return transformLumaEvent(normalized);
+      return transformLumaEvent(normalized, raw.sourceId);
     });
+
+    // Enrich with detail data (hosts, tickets, descriptions, categories)
+    const enriched = await enrichEvents(transformed);
+    console.log(`[server] Enriched ${enriched.length} events with detail data`);
+
+    return enriched;
   } catch (error) {
     console.error('[server] Luma fetch failed:', error);
     return [];
   }
 }
 
-// Cache for Luma events (refresh every 5 min)
+// Cache for Luma events (refresh every 10 min - longer TTL since enrichment is expensive)
 let lumaCache: { events: any[], time: number } | null = null;
-const CACHE_TTL = 5 * 60 * 1000;
+const CACHE_TTL = 10 * 60 * 1000;
 
 async function getCachedLumaEvents() {
   if (!lumaCache || Date.now() - lumaCache.time > CACHE_TTL) {
     const events = await fetchLumaEvents();
     lumaCache = { events, time: Date.now() };
-    console.log(`[server] Refreshed Luma cache: ${events.length} events`);
+    console.log(`[server] Refreshed Luma cache: ${events.length} enriched events`);
     return events;
   }
   return lumaCache.events;
@@ -121,6 +216,8 @@ async function main() {
     status: 'ok',
     luma: luma.isConfigured(),
     calendars: calendarIds.length,
+    cachedEvents: lumaCache?.events.length ?? 0,
+    enriched: true,
     timestamp: new Date().toISOString()
   }));
 
@@ -135,8 +232,23 @@ async function main() {
       events = events.filter((e: any) =>
         e.title?.toLowerCase().includes(q) ||
         e.description?.toLowerCase().includes(q) ||
-        e.venue?.name?.toLowerCase().includes(q)
+        e.venue?.name?.toLowerCase().includes(q) ||
+        e.organizer?.name?.toLowerCase().includes(q) ||
+        e.categories?.some((c: string) => c.toLowerCase().includes(q))
       );
+    }
+
+    // Filter by category
+    if (body.category) {
+      const cat = body.category.toLowerCase();
+      events = events.filter((e: any) =>
+        e.categories?.some((c: string) => c.toLowerCase() === cat)
+      );
+    }
+
+    // Filter by free events only
+    if (body.freeOnly) {
+      events = events.filter((e: any) => e.isFree);
     }
 
     // Limit
