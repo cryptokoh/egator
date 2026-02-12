@@ -252,6 +252,8 @@ export default function register(api: any) {
           // Core actions
           "events",
           "help",
+          // Multi-action (for compound questions)
+          "multi",
           // DANZ actions
           "signup",
           "join",
@@ -273,12 +275,26 @@ export default function register(api: any) {
           "points",
           "referral",
         ],
-        description: "The action to perform",
+        description: "The action to perform. Use 'multi' for compound questions to batch multiple actions in one call.",
+      },
+      actions: {
+        type: "array",
+        description: "For action='multi': array of sub-actions to execute. Each item has action, and optionally query/category/city.",
+        items: {
+          type: "object",
+          properties: {
+            action: { type: "string", description: "Sub-action name" },
+            query: { type: "string", description: "Search query for this sub-action" },
+            category: { type: "string", description: "Category for this sub-action" },
+            city: { type: "string", description: "City filter for this sub-action" },
+          },
+          required: ["action"],
+        },
       },
       user_id: { type: "string", description: "User identifier" },
       platform: {
         type: "string",
-        enum: ["telegram", "discord", "farcaster", "openclaw"],
+        enum: ["telegram", "discord", "farcaster", "openclaw", "web"],
         description: "User's platform",
       },
       platform_username: { type: "string", description: "Username on the platform" },
@@ -296,18 +312,29 @@ export default function register(api: any) {
     name: "flowb",
     description: `FlowB - Your Flow & Bond Assistant. Privacy-centric helper for events, dance community, and more.
 
+CRITICAL: When the user asks multiple questions in one message, use action="multi" with the "actions" array to handle ALL questions in a SINGLE tool call. NEVER make multiple separate flowb tool calls — always batch into one. Respond with ONE combined message.
+
+FlowB should respond when users mention "flowb", "@flowb", or "hey flowb".
+
 EVENTS:
 - events: Discover upcoming events from all sources
 - categories: Browse events by category (DeFi, AI, Infra, Build, Capital, Social, Wellness, Privacy, Art)
-- browse [category]: See events in a category (e.g. "browse defi", "browse ai")
+- browse: See events in a category (set category param to: defi, ai, infra, build, capital, social, wellness, privacy, art)
 - tonight: Events happening tonight
 - week: Events this week
 - free: Free events only
-- search [query]: Search events by keyword
+- search: Search events by keyword (set query param)
+
+MULTI-ACTION (for compound questions):
+- multi: Execute multiple actions at once. Set "actions" array, e.g. [{"action":"search","query":"defi"},{"action":"tonight"}]
+
+KNOWLEDGE (answer these directly without a tool call):
+- "what is flowb" → FlowB is an AI assistant for discovering events, part of the FlowBond ecosystem
+- "what is danz" → DANZ.Now is a dance community platform with challenges, rewards, and events
 
 DANZ.NOW (dance community):
 - signup: Connect your DANZ.Now account
-- verify @username: Link existing DANZ account
+- verify: Link existing DANZ account (set danz_username param)
 - stats: Your dance stats & achievements
 - my-events: Events you're registered for
 - challenges: Active daily & weekly challenges
@@ -322,6 +349,12 @@ POINTS:
     parameters: toolSchema,
 
     async execute(input: ToolInput): Promise<string> {
+      return executeFlowB(input);
+    },
+  });
+
+  /** Core execution logic, extracted so multi-action can call recursively */
+  async function executeFlowB(input: ToolInput): Promise<string> {
       const context: FlowBContext = {
         userId: input.user_id,
         platform: input.platform || "openclaw",
@@ -331,6 +364,30 @@ POINTS:
       const platform = input.platform || "openclaw";
 
       try {
+        // Multi-action: execute several actions and combine results
+        if (input.action === "multi" && input.actions?.length) {
+          const results: string[] = [];
+          for (const sub of input.actions) {
+            const subInput: ToolInput = {
+              ...input,
+              action: sub.action,
+              actions: undefined, // prevent infinite recursion
+              query: sub.query || input.query,
+              category: sub.category || input.category,
+              city: sub.city || input.city,
+            };
+            const subResult = await executeFlowB(subInput);
+            results.push(subResult);
+          }
+          // Combine and award points for the primary action
+          const combined = results.join("\n\n---\n\n");
+          const pointResult = await awardForAction(userId, platform, input.actions[0].action);
+          if (pointResult?.awarded) {
+            return appendPointsFooter(combined, pointResult);
+          }
+          return combined;
+        }
+
         // Points-specific actions
         if (input.action === "points" && pointsService && userId) {
           const balance = await pointsService.getBalance(userId, platform);
@@ -385,8 +442,7 @@ POINTS:
         console.error("[flowb] Error:", err);
         return "Something went wrong. Please try again.";
       }
-    },
-  });
+  }
 
   // Log status
   const configured = Array.from(plugins.values())

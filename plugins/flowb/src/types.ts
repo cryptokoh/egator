@@ -92,8 +92,10 @@ export interface FlowBContext {
 
 export interface ToolInput {
   action: string;
+  /** For multi-action requests: array of sub-actions to execute in one call */
+  actions?: Array<{ action: string; query?: string; category?: string; city?: string }>;
   user_id?: string;
-  platform?: "telegram" | "discord" | "farcaster" | "openclaw";
+  platform?: "telegram" | "discord" | "farcaster" | "openclaw" | "web";
   platform_username?: string;
   danz_username?: string;
   city?: string;
