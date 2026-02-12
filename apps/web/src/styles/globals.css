@@ -264,6 +264,85 @@
     50% { transform: scale(1.15); }
     100% { transform: scale(1); }
   }
+
+  /* Streak fire animations */
+  .streak-fire-warm {
+    animation: streak-glow 2s ease-in-out infinite;
+  }
+
+  .streak-fire-hot {
+    animation: streak-blaze 1.5s ease-in-out infinite;
+    filter: drop-shadow(0 0 3px rgba(255, 140, 0, 0.5));
+  }
+
+  @keyframes streak-glow {
+    0%, 100% { opacity: 0.8; }
+    50% { opacity: 1; }
+  }
+
+  @keyframes streak-blaze {
+    0%, 100% { opacity: 0.9; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.15); }
+  }
+
+  /* Milestone banner slide down */
+  .animate-slide-down {
+    animation: slide-down 0.4s var(--ease-out) forwards;
+  }
+
+  @keyframes slide-down {
+    0% {
+      opacity: 0;
+      transform: translateY(-100%);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Milestone banner shimmer */
+  .milestone-shimmer {
+    background: linear-gradient(
+      105deg,
+      transparent 40%,
+      rgba(139, 92, 246, 0.12) 50%,
+      transparent 60%
+    );
+    background-size: 200% 100%;
+    animation: milestone-shimmer 3s ease-in-out infinite;
+  }
+
+  @keyframes milestone-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* Milestone icon glow */
+  .milestone-icon-glow {
+    animation: icon-glow 2s ease-in-out infinite;
+  }
+
+  @keyframes icon-glow {
+    0%, 100% { box-shadow: 0 0 6px rgba(139, 92, 246, 0.2); }
+    50% { box-shadow: 0 0 14px rgba(139, 92, 246, 0.45); }
+  }
+
+  /* Milestone prompt slide up */
+  .animate-slide-up {
+    animation: slide-up 0.4s var(--ease-out) forwards;
+  }
+
+  @keyframes slide-up {
+    0% {
+      opacity: 0;
+      transform: translateY(100%);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 }
 
 /* Reduced motion */

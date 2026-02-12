@@ -304,6 +304,300 @@ async function main() {
     return { events: rows, total: rows.length };
   });
 
+  // --- FlowB Points API ---
+
+  const supabaseUrl = process.env.DANZ_SUPABASE_URL;
+  const supabaseKey = process.env.DANZ_SUPABASE_KEY;
+
+  if (supabaseUrl && supabaseKey) {
+    // Helper to proxy Supabase requests for points
+    async function supabaseQuery(table: string, params: Record<string, string>) {
+      const url = new URL(`${supabaseUrl}/rest/v1/${table}`);
+      Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+      const res = await fetch(url.toString(), {
+        headers: {
+          apikey: supabaseKey!,
+          Authorization: `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      if (!res.ok) return null;
+      return res.json();
+    }
+
+    async function supabaseInsert(table: string, data: Record<string, any>) {
+      const res = await fetch(`${supabaseUrl}/rest/v1/${table}`, {
+        method: 'POST',
+        headers: {
+          apikey: supabaseKey!,
+          Authorization: `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+          Prefer: 'return=representation',
+        },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) return null;
+      const result = await res.json();
+      return Array.isArray(result) ? result[0] : result;
+    }
+
+    async function supabasePatch(table: string, params: Record<string, string>, data: Record<string, any>) {
+      const url = new URL(`${supabaseUrl}/rest/v1/${table}`);
+      Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+      await fetch(url.toString(), {
+        method: 'PATCH',
+        headers: {
+          apikey: supabaseKey!,
+          Authorization: `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+          Prefer: 'return=minimal',
+        },
+        body: JSON.stringify(data),
+      });
+    }
+
+    // POST /api/v1/points/award - Award points for a web action
+    fastify.post('/api/v1/points/award', async (request) => {
+      const { user_id, action, points, metadata } = request.body as any;
+      if (!user_id || !action || !points) {
+        return { error: 'Missing user_id, action, or points' };
+      }
+
+      // Ensure user row
+      let rows = await supabaseQuery('flowb_user_points', {
+        select: '*',
+        user_id: `eq.${user_id}`,
+        platform: 'eq.web',
+        limit: '1',
+      });
+
+      if (!rows?.length) {
+        await supabaseInsert('flowb_user_points', {
+          user_id,
+          platform: 'web',
+          total_points: 0,
+          current_streak: 0,
+          longest_streak: 0,
+          first_actions: {},
+          milestone_level: 0,
+        });
+        rows = [{ total_points: 0 }];
+      }
+
+      const current = rows[0];
+
+      // Insert ledger entry
+      await supabaseInsert('flowb_points_ledger', {
+        user_id,
+        platform: 'web',
+        action,
+        points,
+        metadata: metadata || {},
+      });
+
+      // Update total
+      const newTotal = (current.total_points || 0) + points;
+      await supabasePatch('flowb_user_points', {
+        user_id: `eq.${user_id}`,
+        platform: 'eq.web',
+      }, {
+        total_points: newTotal,
+        updated_at: new Date().toISOString(),
+      });
+
+      return { awarded: true, points, total: newTotal };
+    });
+
+    // GET /api/v1/points/balance - Get point balance (auto-generates referral code)
+    fastify.get('/api/v1/points/balance', async (request) => {
+      const { user_id, generate_ref } = request.query as { user_id?: string; generate_ref?: string };
+      if (!user_id) return { error: 'Missing user_id' };
+
+      let rows = await supabaseQuery('flowb_user_points', {
+        select: '*',
+        user_id: `eq.${user_id}`,
+        platform: 'eq.web',
+        limit: '1',
+      });
+
+      if (!rows?.length) {
+        // Create user row on first balance check
+        await supabaseInsert('flowb_user_points', {
+          user_id,
+          platform: 'web',
+          total_points: 0,
+          current_streak: 0,
+          longest_streak: 0,
+          first_actions: {},
+          milestone_level: 0,
+        });
+        rows = await supabaseQuery('flowb_user_points', {
+          select: '*',
+          user_id: `eq.${user_id}`,
+          platform: 'eq.web',
+          limit: '1',
+        });
+        if (!rows?.length) {
+          return { totalPoints: 0, streak: 0, referralCode: null, milestoneLevel: 0 };
+        }
+      }
+
+      const r = rows[0];
+
+      // Auto-generate referral code if requested and missing
+      let referralCode = r.referral_code || null;
+      if (!referralCode && generate_ref === 'true') {
+        const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
+        let code = '';
+        for (let i = 0; i < 8; i++) {
+          code += chars[Math.floor(Math.random() * chars.length)];
+        }
+        await supabasePatch('flowb_user_points', {
+          user_id: `eq.${user_id}`,
+          platform: 'eq.web',
+        }, { referral_code: code });
+        referralCode = code;
+      }
+
+      return {
+        totalPoints: r.total_points || 0,
+        streak: r.current_streak || 0,
+        referralCode,
+        milestoneLevel: r.milestone_level || 0,
+      };
+    });
+
+    // POST /api/v1/points/transfer - Transfer anonymous points to registered account
+    fastify.post('/api/v1/points/transfer', async (request) => {
+      const { from_user_id, to_user_id } = request.body as any;
+      if (!from_user_id || !to_user_id) {
+        return { error: 'Missing from_user_id or to_user_id' };
+      }
+
+      const fromRows = await supabaseQuery('flowb_user_points', {
+        select: '*',
+        user_id: `eq.${from_user_id}`,
+        platform: 'eq.web',
+        limit: '1',
+      });
+
+      if (!fromRows?.length || fromRows[0].total_points === 0) {
+        return { transferred: false, reason: 'No points to transfer' };
+      }
+
+      const toRows = await supabaseQuery('flowb_user_points', {
+        select: '*',
+        user_id: `eq.${to_user_id}`,
+        platform: 'eq.web',
+        limit: '1',
+      });
+
+      let toTotal = 0;
+      if (toRows?.length) {
+        toTotal = toRows[0].total_points || 0;
+      } else {
+        await supabaseInsert('flowb_user_points', {
+          user_id: to_user_id,
+          platform: 'web',
+          total_points: 0,
+          current_streak: 0,
+          longest_streak: 0,
+          first_actions: {},
+          milestone_level: 0,
+        });
+      }
+
+      const fromTotal = fromRows[0].total_points;
+      await supabasePatch('flowb_user_points', {
+        user_id: `eq.${to_user_id}`,
+        platform: 'eq.web',
+      }, { total_points: toTotal + fromTotal });
+
+      await supabasePatch('flowb_user_points', {
+        user_id: `eq.${from_user_id}`,
+        platform: 'eq.web',
+      }, { total_points: 0 });
+
+      return { transferred: true, points: fromTotal, newTotal: toTotal + fromTotal };
+    });
+
+    // POST /api/v1/points/referral-click - Track referral link click
+    fastify.post('/api/v1/points/referral-click', async (request) => {
+      const { ref_code, user_id } = request.body as any;
+      if (!ref_code || !user_id) {
+        return { error: 'Missing ref_code or user_id' };
+      }
+
+      // Find referrer
+      const referrers = await supabaseQuery('flowb_user_points', {
+        select: 'user_id,platform',
+        referral_code: `eq.${ref_code}`,
+        limit: '1',
+      });
+
+      if (!referrers?.length) return { tracked: false };
+
+      const referrer = referrers[0];
+      if (referrer.user_id === user_id) return { tracked: false };
+
+      // Award referrer +3 for click
+      await supabaseInsert('flowb_points_ledger', {
+        user_id: referrer.user_id,
+        platform: referrer.platform,
+        action: 'referral_click',
+        points: 3,
+        metadata: { clicker: user_id },
+      });
+
+      // Update referrer total
+      const referrerRows = await supabaseQuery('flowb_user_points', {
+        select: 'total_points',
+        user_id: `eq.${referrer.user_id}`,
+        platform: `eq.${referrer.platform}`,
+        limit: '1',
+      });
+
+      if (referrerRows?.length) {
+        await supabasePatch('flowb_user_points', {
+          user_id: `eq.${referrer.user_id}`,
+          platform: `eq.${referrer.platform}`,
+        }, {
+          total_points: (referrerRows[0].total_points || 0) + 3,
+        });
+      }
+
+      // Store referred_by on clicker
+      let clickerRows = await supabaseQuery('flowb_user_points', {
+        select: 'referred_by',
+        user_id: `eq.${user_id}`,
+        platform: 'eq.web',
+        limit: '1',
+      });
+
+      if (!clickerRows?.length) {
+        await supabaseInsert('flowb_user_points', {
+          user_id,
+          platform: 'web',
+          total_points: 0,
+          referred_by: ref_code,
+          current_streak: 0,
+          longest_streak: 0,
+          first_actions: {},
+          milestone_level: 0,
+        });
+      } else if (!clickerRows[0].referred_by) {
+        await supabasePatch('flowb_user_points', {
+          user_id: `eq.${user_id}`,
+          platform: 'eq.web',
+        }, { referred_by: ref_code });
+      }
+
+      return { tracked: true };
+    });
+
+    console.log('[server] FlowB Points API enabled');
+  }
+
   // Start
   const port = parseInt(process.env.PORT || '3000', 10);
   await fastify.listen({ port, host: '0.0.0.0' });

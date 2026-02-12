@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { format } from 'date-fns';
-import { MapPin, Clock, DollarSign, Zap, Users, Footprints, Heart } from 'lucide-react';
+import { MapPin, Clock, DollarSign, Zap, Users, Footprints, Heart, Share2 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { usePoints } from '@/components/gamification/PointsProvider';
 import { MoodChip } from '@/components/discovery/MoodChip';
@@ -15,13 +15,50 @@ interface EventCardProps {
 }
 
 export function EventCard({ event, onClick, className }: EventCardProps) {
-  const { awardPoints } = usePoints();
+  const { awardPoints, anonId } = usePoints();
   const startDate = new Date(event.startTime);
   const primaryMood = event.vibe.moods[0];
 
   const handleClick = () => {
     awardPoints(2, 'Event explored');
     onClick?.();
+  };
+
+  const handleShare = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    // Build share URL with user's own referral code (generated on demand)
+    let ownRefCode = '';
+    try {
+      const res = await fetch(`/api/v1/points/balance?user_id=${encodeURIComponent(anonId)}&generate_ref=true`);
+      if (res.ok) {
+        const data = await res.json();
+        ownRefCode = data.referralCode || '';
+      }
+    } catch { /* non-critical */ }
+
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    const shareUrl = ownRefCode
+      ? `${baseUrl}/events/${event.id}?ref=${ownRefCode}`
+      : `${baseUrl}/events/${event.id}`;
+
+    const shareData = {
+      title: event.title,
+      text: `Check out ${event.title}`,
+      url: shareUrl,
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+        awardPoints(5, 'Shared!', 'info');
+      } else {
+        await navigator.clipboard.writeText(shareUrl);
+        awardPoints(5, 'Link copied!', 'info');
+      }
+    } catch {
+      // User cancelled share or clipboard failed - no points
+    }
   };
 
   return (
@@ -142,7 +179,7 @@ export function EventCard({ event, onClick, className }: EventCardProps) {
           </div>
         )}
 
-        {/* Vibe indicators */}
+        {/* Vibe indicators + Share */}
         <div className="flex items-center gap-3 pt-2 border-t border-border-subtle">
           {/* Energy */}
           {event.vibe.energyLevel && (
@@ -164,6 +201,15 @@ export function EventCard({ event, onClick, className }: EventCardProps) {
           {event.vibe.soloFriendly && (
             <span className="text-xs text-text-tertiary">Solo-friendly</span>
           )}
+
+          {/* Share button */}
+          <button
+            onClick={handleShare}
+            className="ml-auto p-1 rounded-lg hover:bg-bg-surface text-text-tertiary hover:text-accent transition-colors"
+            title="Share event"
+          >
+            <Share2 className="w-3.5 h-3.5" />
+          </button>
         </div>
 
         {/* Tags */}

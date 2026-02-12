@@ -13,9 +13,11 @@
  *   - Core help and onboarding
  */
 
-import type { FlowBPlugin, EventProvider, FlowBConfig, ToolInput, FlowBContext, EventResult } from "./types.js";
+import type { FlowBPlugin, EventProvider, FlowBConfig, ToolInput, FlowBContext, EventResult, PointAwardResult, FlowBPointsConfig } from "./types.js";
+import { PointAction } from "./types.js";
 import { DANZPlugin } from "./plugins/danz/index.js";
 import { EGatorPlugin, formatEventList } from "./plugins/egator/index.js";
+import { PointsService } from "./services/points.js";
 
 // ============================================================================
 // Plugin Registry
@@ -23,6 +25,7 @@ import { EGatorPlugin, formatEventList } from "./plugins/egator/index.js";
 
 const plugins: Map<string, FlowBPlugin> = new Map();
 const eventProviders: EventProvider[] = [];
+let pointsService: PointsService | null = null;
 
 function registerPlugin(plugin: FlowBPlugin) {
   plugins.set(plugin.id, plugin);
@@ -117,9 +120,75 @@ function showHelp(): string {
     }
   }
 
+  // Points section
+  if (pointsService) {
+    lines.push("**Points**");
+    lines.push("- **points** - Check your FlowB points and milestone");
+    lines.push("- **referral** - Get your referral link");
+    lines.push("");
+  }
+
   lines.push("- **help** - Show this message");
 
   return lines.join("\n");
+}
+
+// ============================================================================
+// Points Integration
+// ============================================================================
+
+/** Map FlowB actions to point actions for automatic awarding */
+const ACTION_POINT_MAP: Record<string, PointAction> = {
+  events: PointAction.DISCOVER_EVENTS,
+  search: PointAction.SEARCH_EVENTS,
+  help: PointAction.ASK,
+  stats: PointAction.CHECK_STATS,
+  challenges: PointAction.CHECK_CHALLENGES,
+  leaderboard: PointAction.CHECK_LEADERBOARD,
+  signup: PointAction.ASK,
+  join: PointAction.ASK,
+  verify: PointAction.COMPLETE_VERIFICATION,
+  status: PointAction.ASK,
+  "my-events": PointAction.ASK,
+};
+
+/** Format a subtle points footer for chat responses */
+function appendPointsFooter(response: string, result: PointAwardResult): string {
+  if (!result.awarded) return response;
+
+  let footer = `+${result.points} pts  |  ${result.total} total`;
+  if (result.milestone) {
+    footer += `  ${result.milestone.title}!`;
+  }
+
+  return `${response}\n\n---\n${footer}`;
+}
+
+/** Award points for an action and handle daily + streak bonuses */
+async function awardForAction(
+  userId: string | undefined,
+  platform: string,
+  action: string,
+): Promise<PointAwardResult | null> {
+  if (!pointsService || !userId) return null;
+
+  const pointAction = ACTION_POINT_MAP[action];
+  if (!pointAction) return null;
+
+  const result = await pointsService.awardPoints(userId, platform, pointAction);
+
+  // Also award daily interaction bonus (once per day)
+  await pointsService.awardPoints(userId, platform, PointAction.DAILY_INTERACTION);
+
+  // Check for streak bonuses (3/7/30 day thresholds)
+  await pointsService.updateStreak(userId, platform);
+
+  // If this was a verification, also process referral signup bonus
+  if (action === "verify" && result.awarded) {
+    await pointsService.processReferralSignup(userId, platform);
+  }
+
+  return result;
 }
 
 // ============================================================================
@@ -141,6 +210,14 @@ export default function register(api: any) {
       } : undefined,
     },
   };
+
+  // Initialize points service (reuses DANZ Supabase for now)
+  if (rawConfig.danzSupabaseUrl && rawConfig.danzSupabaseKey) {
+    pointsService = new PointsService({
+      supabaseUrl: rawConfig.danzSupabaseUrl,
+      supabaseKey: rawConfig.danzSupabaseKey,
+    });
+  }
 
   // Initialize plugins
   const danz = new DANZPlugin();
@@ -177,6 +254,9 @@ export default function register(api: any) {
           "search",
           // DANZ additional
           "my-events",
+          // Points actions
+          "points",
+          "referral",
         ],
         description: "The action to perform",
       },
@@ -192,6 +272,7 @@ export default function register(api: any) {
       category: { type: "string", description: "Event category filter" },
       dance_style: { type: "string", description: "Dance style filter" },
       query: { type: "string", description: "Search query" },
+      ref_code: { type: "string", description: "Referral code" },
     },
     required: ["action"],
   };
@@ -212,6 +293,10 @@ DANZ.NOW (dance community):
 - challenges: Active daily & weekly challenges
 - leaderboard: Top dancers
 
+POINTS:
+- points: Check your FlowB points balance and milestone
+- referral: Get your referral link to share with friends
+
 OTHER:
 - search: Search events across all sources
 - help: Show all commands`,
@@ -224,25 +309,60 @@ OTHER:
         platform: input.platform || "openclaw",
         config,
       };
+      const userId = input.user_id;
+      const platform = input.platform || "openclaw";
 
       try {
+        // Points-specific actions
+        if (input.action === "points" && pointsService && userId) {
+          const balance = await pointsService.getBalance(userId, platform);
+          let msg = `**Your FlowB Points**\n\n**${balance.totalPoints}** pts`;
+          if (balance.milestoneName) msg += `  |  ${balance.milestoneName}`;
+          if (balance.streak > 0) msg += `\nStreak: ${balance.streak} day${balance.streak > 1 ? "s" : ""}`;
+          if (balance.referralCode) msg += `\nReferral code: ${balance.referralCode}`;
+          return msg;
+        }
+
+        if (input.action === "referral" && pointsService && userId) {
+          const code = await pointsService.getReferralCode(userId, platform);
+          if (!code) return "Could not generate referral code. Try again.";
+          return `**Your Referral Link**\n\nShare this with friends:\nhttps://aiegator.app/?ref=${code}\n\nYou earn **+3 pts** per click and **+15 pts** when they register!`;
+        }
+
+        let response: string;
+
         // Core actions handled by FlowB directly
         switch (input.action) {
           case "events":
-            return await discoverEvents(input);
+            response = await discoverEvents(input);
+            break;
           case "help":
-            return showHelp();
-        }
-
-        // Route to plugins
-        for (const [, plugin] of plugins) {
-          if (input.action in plugin.actions && plugin.isConfigured()) {
-            return await plugin.execute(input.action, input, context);
+            response = showHelp();
+            break;
+          default: {
+            // Route to plugins
+            let handled = false;
+            for (const [, plugin] of plugins) {
+              if (input.action in plugin.actions && plugin.isConfigured()) {
+                response = await plugin.execute(input.action, input, context);
+                handled = true;
+                break;
+              }
+            }
+            if (!handled) {
+              response = showHelp();
+            }
+            break;
           }
         }
 
-        // Fallback
-        return showHelp();
+        // Award points for the action and append footer
+        const pointResult = await awardForAction(userId, platform, input.action);
+        if (pointResult?.awarded) {
+          response = appendPointsFooter(response!, pointResult);
+        }
+
+        return response!;
       } catch (err) {
         console.error("[flowb] Error:", err);
         return "Something went wrong. Please try again.";

@@ -14,6 +14,7 @@ import type {
   EventQuery,
   EventResult,
 } from "../../types.js";
+import { query, insert } from "../../utils/supabase.js";
 
 // ============================================================================
 // Types
@@ -55,55 +56,6 @@ const verifiedUsers = new Map<string, {
   danzPrivyId: string;
   verifiedAt: number;
 }>();
-
-// ============================================================================
-// Supabase Helpers
-// ============================================================================
-
-async function query<T>(
-  config: DANZPluginConfig,
-  table: string,
-  params: Record<string, string>,
-): Promise<T | null> {
-  if (!config.supabaseUrl || !config.supabaseKey) return null;
-
-  const url = new URL(`${config.supabaseUrl}/rest/v1/${table}`);
-  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-
-  const res = await fetch(url.toString(), {
-    headers: {
-      apikey: config.supabaseKey,
-      Authorization: `Bearer ${config.supabaseKey}`,
-      "Content-Type": "application/json",
-    },
-  });
-
-  if (!res.ok) return null;
-  return res.json() as Promise<T>;
-}
-
-async function insert<T>(
-  config: DANZPluginConfig,
-  table: string,
-  data: Record<string, any>,
-): Promise<T | null> {
-  if (!config.supabaseUrl || !config.supabaseKey) return null;
-
-  const res = await fetch(`${config.supabaseUrl}/rest/v1/${table}`, {
-    method: "POST",
-    headers: {
-      apikey: config.supabaseKey,
-      Authorization: `Bearer ${config.supabaseKey}`,
-      "Content-Type": "application/json",
-      Prefer: "return=representation",
-    },
-    body: JSON.stringify(data),
-  });
-
-  if (!res.ok) return null;
-  const result = await res.json();
-  return Array.isArray(result) ? result[0] : result;
-}
 
 function generateCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
