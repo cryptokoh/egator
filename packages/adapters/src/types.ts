@@ -48,6 +48,7 @@ export interface LocationFilter {
   city?: string;
   state?: string;
   country?: string;
+  postalCode?: string;
   lat?: number;
   lng?: number;
   radiusMiles?: number;

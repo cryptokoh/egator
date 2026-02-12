@@ -8,6 +8,7 @@ import {
   real,
   jsonb,
   index,
+  integer,
 } from 'drizzle-orm/pg-core';
 import { events } from './events.js';
 
@@ -121,10 +122,3 @@ export const deduplicationRuns = pgTable('deduplication_runs', {
 export type DeduplicationRun = typeof deduplicationRuns.$inferSelect;
 export type NewDeduplicationRun = typeof deduplicationRuns.$inferInsert;
 
-// Type helper for integer
-function integer(name: string) {
-  return {
-    ...varchar(name, { length: 255 }),
-    $type: () => 0 as number,
-  } as any;
-}

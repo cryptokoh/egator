@@ -8,6 +8,13 @@ import { AllEventsAdapter } from './allevents/index.js';
 import { BandsintownAdapter } from './bandsintown/index.js';
 import { HumanitixAdapter } from './humanitix/index.js';
 import { ClassPassAdapter } from './classpass/index.js';
+import { LumaAdapter, type LumaAdapterConfig } from './luma/index.js';
+import { DANZAdapter } from './danz/index.js';
+
+export interface DANZAdapterConfig extends AdapterConfig {
+  supabaseUrl: string;
+  supabaseKey: string;
+}
 
 export interface RegistryConfig {
   eventbrite?: AdapterConfig;
@@ -18,6 +25,8 @@ export interface RegistryConfig {
   bandsintown?: AdapterConfig;
   humanitix?: AdapterConfig;
   classpass?: AdapterConfig;
+  luma?: LumaAdapterConfig;
+  danz?: DANZAdapterConfig;
 }
 
 /**
@@ -51,6 +60,12 @@ export class AdapterRegistry {
     }
     if (config.classpass) {
       this.adapters.set('classpass', new ClassPassAdapter(config.classpass));
+    }
+    if (config.luma) {
+      this.adapters.set('luma', new LumaAdapter(config.luma));
+    }
+    if (config.danz) {
+      this.adapters.set('danz', new DANZAdapter(config.danz));
     }
   }
 

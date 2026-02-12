@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { format } from 'date-fns';
 import { MapPin, Clock, DollarSign, Zap, Users, Footprints, Heart } from 'lucide-react';
 import { cn } from '@/lib/cn';
+import { usePoints } from '@/components/gamification/PointsProvider';
 import { MoodChip } from '@/components/discovery/MoodChip';
 import type { DiscoveredEvent } from '@/lib/api';
 
@@ -14,12 +15,18 @@ interface EventCardProps {
 }
 
 export function EventCard({ event, onClick, className }: EventCardProps) {
+  const { awardPoints } = usePoints();
   const startDate = new Date(event.startTime);
   const primaryMood = event.vibe.moods[0];
 
+  const handleClick = () => {
+    awardPoints(2, 'Event explored');
+    onClick?.();
+  };
+
   return (
     <article
-      onClick={onClick}
+      onClick={handleClick}
       className={cn(
         'card-interactive overflow-hidden cursor-pointer group',
         className

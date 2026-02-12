@@ -1,6 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/cn';
+import { usePoints } from '@/components/gamification/PointsProvider';
 import {
   Activity,
   Coffee,
@@ -109,17 +110,23 @@ export function MoodSelector({
   multiSelect = true,
   className,
 }: MoodSelectorProps) {
+  const { awardPoints } = usePoints();
   const moods: Mood[] = ['move', 'chill', 'connect', 'learn', 'celebrate', 'create', 'explore'];
 
   const handleClick = (mood: Mood) => {
+    const isSelecting = !selected.includes(mood);
     if (multiSelect) {
-      if (selected.includes(mood)) {
-        onChange(selected.filter((m) => m !== mood));
-      } else {
+      if (isSelecting) {
         onChange([...selected, mood]);
+      } else {
+        onChange(selected.filter((m) => m !== mood));
       }
     } else {
-      onChange(selected.includes(mood) ? [] : [mood]);
+      onChange(isSelecting ? [mood] : []);
+    }
+
+    if (isSelecting) {
+      awardPoints(1, `${MOOD_CONFIG[mood].label} mood`);
     }
   };
 

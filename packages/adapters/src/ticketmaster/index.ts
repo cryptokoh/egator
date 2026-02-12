@@ -107,6 +107,12 @@ export class TicketmasterAdapter extends BaseAdapter {
     if (options.location?.country) {
       params['countryCode'] = options.location.country;
     }
+    // Postal code search (overrides city if provided)
+    if (options.location?.postalCode) {
+      params['postalCode'] = options.location.postalCode;
+      params['radius'] = (options.location.radiusMiles ?? 25).toString();
+      params['unit'] = 'miles';
+    }
 
     // Date filter
     if (options.date?.startDate) {

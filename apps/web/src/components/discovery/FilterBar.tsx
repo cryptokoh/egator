@@ -1,6 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/cn';
+import { usePoints } from '@/components/gamification/PointsProvider';
 import { MapPin, Sparkles, Music, Flower2, Calendar, CalendarDays } from 'lucide-react';
 
 type QuickFilter = 'tonight' | 'weekend' | 'holistic' | 'dance' | 'nearby';
@@ -28,6 +29,16 @@ export function FilterBar({
   onNeighborhoodClick,
   className,
 }: FilterBarProps) {
+  const { awardPoints } = usePoints();
+
+  const handleFilterClick = (id: QuickFilter, label: string) => {
+    const isSelecting = activeFilter !== id;
+    onFilterChange(isSelecting ? id : null);
+    if (isSelecting) {
+      awardPoints(1, `${label} filter`);
+    }
+  };
+
   return (
     <div className={cn('sticky top-16 z-40 glass py-3', className)}>
       <div className="container-app">
@@ -37,7 +48,7 @@ export function FilterBar({
             {QUICK_FILTERS.map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
-                onClick={() => onFilterChange(activeFilter === id ? null : id)}
+                onClick={() => handleFilterClick(id, label)}
                 className={cn(
                   'chip-interactive flex-shrink-0',
                   activeFilter === id && 'chip-selected bg-accent'

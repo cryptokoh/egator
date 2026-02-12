@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AIeGator API Explorer</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh;
+      color: #fff;
+    }
+    .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+    header {
+      text-align: center;
+      padding: 40px 20px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 16px;
+      margin-bottom: 30px;
+    }
+    h1 { font-size: 2.5rem; margin-bottom: 10px; }
+    h1 span { color: #4ade80; }
+    .subtitle { color: #94a3b8; font-size: 1.1rem; }
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 15px;
+      padding: 8px 16px;
+      background: rgba(74, 222, 128, 0.1);
+      border-radius: 20px;
+      font-size: 0.9rem;
+    }
+    .status.connected { color: #4ade80; }
+    .status.disconnected { color: #f87171; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+
+    .grid { display: grid; grid-template-columns: 300px 1fr; gap: 20px; }
+    @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+
+    .sidebar {
+      background: rgba(255,255,255,0.05);
+      border-radius: 16px;
+      padding: 20px;
+    }
+    .sidebar h2 { font-size: 1rem; color: #94a3b8; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 1px; }
+
+    .endpoint-btn {
+      width: 100%;
+      padding: 12px 16px;
+      margin-bottom: 10px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      color: #fff;
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.2s;
+      font-size: 0.95rem;
+    }
+    .endpoint-btn:hover { background: rgba(74, 222, 128, 0.1); border-color: #4ade80; }
+    .endpoint-btn.active { background: rgba(74, 222, 128, 0.2); border-color: #4ade80; }
+    .endpoint-btn .method {
+      display: inline-block;
+      padding: 2px 6px;
+      background: #4ade80;
+      color: #1a1a2e;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      margin-right: 8px;
+    }
+    .endpoint-btn .method.post { background: #60a5fa; }
+
+    .filters {
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid rgba(255,255,255,0.1);
+    }
+    .filter-group { margin-bottom: 15px; }
+    .filter-group label { display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 8px; }
+    .filter-group select, .filter-group input {
+      width: 100%;
+      padding: 10px;
+      background: rgba(0,0,0,0.3);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      color: #fff;
+      font-size: 0.9rem;
+    }
+    .checkbox-group { display: flex; gap: 15px; flex-wrap: wrap; }
+    .checkbox-group label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: #fff;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+    .search-btn {
+      width: 100%;
+      padding: 12px 16px;
+      margin-top: 15px;
+      background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+      border: none;
+      border-radius: 10px;
+      color: #1a1a2e;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .search-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(74, 222, 128, 0.3); }
+    .location-display {
+      background: rgba(74, 222, 128, 0.1);
+      border: 1px solid rgba(74, 222, 128, 0.3);
+      border-radius: 8px;
+      padding: 8px 12px;
+      margin-bottom: 15px;
+      font-size: 0.85rem;
+      color: #4ade80;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .main-content {
+      background: rgba(255,255,255,0.05);
+      border-radius: 16px;
+      padding: 20px;
+    }
+    .results-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    .results-header h2 { font-size: 1.2rem; }
+    .event-count {
+      background: rgba(74, 222, 128, 0.2);
+      color: #4ade80;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.9rem;
+    }
+
+    .events-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
+    }
+
+    .event-card {
+      background: rgba(0,0,0,0.3);
+      border-radius: 12px;
+      overflow: hidden;
+      transition: transform 0.2s;
+    }
+    .event-card:hover { transform: translateY(-4px); }
+    .event-card img {
+      width: 100%;
+      height: 140px;
+      object-fit: cover;
+      background: rgba(255,255,255,0.1);
+    }
+    .event-card-content { padding: 15px; }
+    .event-card h3 { font-size: 1rem; margin-bottom: 8px; line-height: 1.3; }
+    .event-meta { font-size: 0.85rem; color: #94a3b8; }
+    .event-meta div { margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+    .event-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .tag {
+      padding: 3px 8px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 4px;
+      font-size: 0.75rem;
+      color: #94a3b8;
+    }
+    .tag.holistic { background: rgba(168, 85, 247, 0.2); color: #c084fc; }
+    .tag.dance { background: rgba(251, 146, 60, 0.2); color: #fb923c; }
+    .tag.source { background: rgba(74, 222, 128, 0.2); color: #4ade80; }
+
+    .loading {
+      text-align: center;
+      padding: 60px 20px;
+      color: #94a3b8;
+    }
+    .loading .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid rgba(255,255,255,0.1);
+      border-top-color: #4ade80;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 15px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #94a3b8;
+    }
+    .empty-state .icon { font-size: 3rem; margin-bottom: 15px; }
+
+    /* Modal styles */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s ease;
+    }
+    .modal-overlay.active { opacity: 1; visibility: visible; }
+    .modal {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      border-radius: 20px;
+      max-width: 600px;
+      width: 90%;
+      max-height: 90vh;
+      overflow: hidden;
+      transform: scale(0.9) translateY(20px);
+      transition: transform 0.3s ease;
+      box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+    }
+    .modal-overlay.active .modal { transform: scale(1) translateY(0); }
+    .modal-image {
+      width: 100%;
+      height: 200px;
+      object-fit: cover;
+      background: rgba(255,255,255,0.1);
+    }
+    .modal-content {
+      padding: 25px;
+      max-height: calc(90vh - 200px);
+      overflow-y: auto;
+    }
+    .modal-close {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.5);
+      border: none;
+      color: #fff;
+      font-size: 1.5rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    .modal-close:hover { background: rgba(255, 255, 255, 0.2); transform: scale(1.1); }
+    .modal-header { position: relative; }
+    .modal-title { font-size: 1.5rem; margin-bottom: 10px; line-height: 1.3; }
+    .modal-date {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #4ade80;
+      font-size: 1rem;
+      margin-bottom: 20px;
+    }
+    .modal-section {
+      margin-bottom: 20px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    .modal-section:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+    .modal-section-title {
+      font-size: 0.85rem;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 10px;
+    }
+    .modal-venue {
+      display: flex;
+      gap: 15px;
+      align-items: flex-start;
+    }
+    .modal-venue-icon {
+      width: 50px;
+      height: 50px;
+      background: rgba(74, 222, 128, 0.1);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      flex-shrink: 0;
+    }
+    .modal-venue-info h4 { margin-bottom: 4px; }
+    .modal-venue-info p { color: #94a3b8; font-size: 0.9rem; margin: 0; }
+    .modal-description {
+      color: #cbd5e1;
+      line-height: 1.6;
+      font-size: 0.95rem;
+    }
+    .modal-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .modal-tag {
+      padding: 6px 12px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 20px;
+      font-size: 0.85rem;
+      color: #e2e8f0;
+    }
+    .modal-tag.mood { background: rgba(96, 165, 250, 0.2); color: #60a5fa; }
+    .modal-tag.holistic { background: rgba(168, 85, 247, 0.2); color: #c084fc; }
+    .modal-tag.dance { background: rgba(251, 146, 60, 0.2); color: #fb923c; }
+    .modal-price {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+    .modal-price-value {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: #4ade80;
+    }
+    .modal-price-label { color: #94a3b8; font-size: 0.9rem; }
+    .modal-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 20px;
+    }
+    .modal-btn {
+      flex: 1;
+      padding: 14px 20px;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-decoration: none;
+      text-align: center;
+    }
+    .modal-btn-primary {
+      background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+      border: none;
+      color: #0f172a;
+    }
+    .modal-btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(74, 222, 128, 0.4); }
+    .modal-btn-secondary {
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.2);
+      color: #fff;
+    }
+    .modal-btn-secondary:hover { background: rgba(255,255,255,0.1); }
+    .vibe-meter {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .vibe-meter-label { color: #94a3b8; font-size: 0.85rem; min-width: 100px; }
+    .vibe-meter-bar {
+      flex: 1;
+      height: 8px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .vibe-meter-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #4ade80, #22c55e);
+      border-radius: 4px;
+      transition: width 0.3s ease;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1><span>AIeGator</span> API Explorer</h1>
+      <p class="subtitle">AI-powered event discovery for SF Bay Area</p>
+      <div class="status" id="status">
+        <span class="dot"></span>
+        <span>Checking connection...</span>
+      </div>
+    </header>
+
+    <div class="grid">
+      <aside class="sidebar">
+        <h2>Endpoints</h2>
+        <button class="endpoint-btn active" data-endpoint="/api/v1/discover/tonight">
+          <span class="method">GET</span> Tonight
+        </button>
+        <button class="endpoint-btn" data-endpoint="/api/v1/discover/weekend">
+          <span class="method">GET</span> This Weekend
+        </button>
+        <button class="endpoint-btn" data-endpoint="/api/v1/discover/holistic">
+          <span class="method">GET</span> Holistic Events
+        </button>
+        <button class="endpoint-btn" data-endpoint="/api/v1/discover/dance">
+          <span class="method">GET</span> Dance Events
+        </button>
+        <button class="endpoint-btn" data-endpoint="/api/v1/discover/ticketmaster">
+          <span class="method">GET</span> Ticketmaster
+        </button>
+        <button class="endpoint-btn" data-endpoint="/api/v1/discover/nearby">
+          <span class="method">GET</span> Nearby
+        </button>
+        <button class="endpoint-btn" data-endpoint="discover-filtered">
+          <span class="method post">POST</span> Filtered Search
+        </button>
+
+        <div class="filters">
+          <h2>Location</h2>
+          <div class="filter-group">
+            <label>City</label>
+            <input type="text" id="city-filter" placeholder="San Francisco" value="San Francisco">
+          </div>
+          <div class="filter-group">
+            <label>State</label>
+            <select id="state-filter">
+              <option value="CA" selected>California</option>
+              <option value="NY">New York</option>
+              <option value="TX">Texas</option>
+              <option value="FL">Florida</option>
+              <option value="WA">Washington</option>
+              <option value="OR">Oregon</option>
+              <option value="NV">Nevada</option>
+              <option value="AZ">Arizona</option>
+              <option value="CO">Colorado</option>
+              <option value="IL">Illinois</option>
+              <option value="MA">Massachusetts</option>
+              <option value="GA">Georgia</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label>Or ZIP Code</label>
+            <input type="text" id="zip-filter" placeholder="e.g. 94102" maxlength="5">
+          </div>
+          <button class="search-btn" id="search-location">Search Location</button>
+
+          <h2 style="margin-top: 25px;">Filters</h2>
+          <div class="filter-group">
+            <label>Mood</label>
+            <select id="mood-filter">
+              <option value="">All moods</option>
+              <option value="chill">Chill</option>
+              <option value="move">Move</option>
+              <option value="connect">Connect</option>
+              <option value="explore">Explore</option>
+              <option value="celebrate">Celebrate</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label>Event Type</label>
+            <div class="checkbox-group">
+              <label><input type="checkbox" id="filter-holistic"> Holistic</label>
+              <label><input type="checkbox" id="filter-dance"> Dance</label>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <div class="results-header">
+          <h2 id="results-title">Tonight's Events</h2>
+          <span class="event-count" id="event-count">0 events</span>
+        </div>
+        <div id="results">
+          <div class="loading">
+            <div class="spinner"></div>
+            <p>Loading events...</p>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- Event Detail Modal -->
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <img class="modal-image" id="modal-image" src="" alt="">
+        <button class="modal-close" id="modal-close">&times;</button>
+      </div>
+      <div class="modal-content">
+        <h2 class="modal-title" id="modal-title"></h2>
+        <div class="modal-date" id="modal-date"></div>
+
+        <div class="modal-section" id="modal-venue-section">
+          <div class="modal-section-title">Venue</div>
+          <div class="modal-venue">
+            <div class="modal-venue-icon">📍</div>
+            <div class="modal-venue-info">
+              <h4 id="modal-venue-name"></h4>
+              <p id="modal-venue-address"></p>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-section" id="modal-description-section">
+          <div class="modal-section-title">About</div>
+          <p class="modal-description" id="modal-description"></p>
+        </div>
+
+        <div class="modal-section">
+          <div class="modal-section-title">Vibe</div>
+          <div class="modal-tags" id="modal-tags"></div>
+          <div class="vibe-meter">
+            <span class="vibe-meter-label">Energy Level</span>
+            <div class="vibe-meter-bar">
+              <div class="vibe-meter-fill" id="modal-energy"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-section" id="modal-price-section">
+          <div class="modal-section-title">Price</div>
+          <div class="modal-price">
+            <span class="modal-price-value" id="modal-price"></span>
+            <span class="modal-price-label" id="modal-price-label"></span>
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <a href="#" class="modal-btn modal-btn-primary" id="modal-tickets" target="_blank">Get Tickets</a>
+          <button class="modal-btn modal-btn-secondary" id="modal-share">Share</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = '';
+    let currentEndpoint = '/api/v1/discover/tonight';
+    let currentLocation = { city: 'San Francisco', state: 'CA' };
+    let currentEvents = []; // Store events for modal lookup
+
+    // Modal functionality
+    const modalOverlay = document.getElementById('modal-overlay');
+    const modalClose = document.getElementById('modal-close');
+
+    function openModal(event) {
+      // Populate modal with event data
+      document.getElementById('modal-image').src = event.imageUrl || 'https://via.placeholder.com/600x200/1a1a2e/4ade80?text=Event';
+      document.getElementById('modal-title').textContent = event.title;
+
+      // Format date
+      const date = new Date(event.startTime);
+      const dateStr = date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+      const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      document.getElementById('modal-date').innerHTML = `<span>📅</span> ${dateStr} at ${timeStr}`;
+
+      // Venue
+      if (event.venue?.name) {
+        document.getElementById('modal-venue-section').style.display = 'block';
+        document.getElementById('modal-venue-name').textContent = event.venue.name;
+        const address = [event.venue.address, event.venue.city, event.venue.state].filter(Boolean).join(', ');
+        document.getElementById('modal-venue-address').textContent = address || 'Address TBA';
+      } else {
+        document.getElementById('modal-venue-section').style.display = 'none';
+      }
+
+      // Description
+      if (event.description) {
+        document.getElementById('modal-description-section').style.display = 'block';
+        document.getElementById('modal-description').textContent = event.description;
+      } else {
+        document.getElementById('modal-description-section').style.display = 'none';
+      }
+
+      // Tags
+      const tagsHtml = [];
+      tagsHtml.push(`<span class="modal-tag">${event.source}</span>`);
+      if (event.vibe?.isHolistic) tagsHtml.push('<span class="modal-tag holistic">Holistic</span>');
+      if (event.vibe?.isDance) tagsHtml.push('<span class="modal-tag dance">Dance</span>');
+      (event.vibe?.moods || []).forEach(m => tagsHtml.push(`<span class="modal-tag mood">${m}</span>`));
+      if (event.vibe?.soloFriendly) tagsHtml.push('<span class="modal-tag">Solo Friendly</span>');
+      document.getElementById('modal-tags').innerHTML = tagsHtml.join('');
+
+      // Energy level (1-5 scale)
+      const energyPercent = ((event.vibe?.energyLevel || 3) / 5) * 100;
+      document.getElementById('modal-energy').style.width = energyPercent + '%';
+
+      // Price
+      if (event.price) {
+        document.getElementById('modal-price-section').style.display = 'block';
+        const priceStr = event.price.min === event.price.max
+          ? `$${event.price.min}`
+          : `$${event.price.min} - $${event.price.max}`;
+        document.getElementById('modal-price').textContent = priceStr;
+        document.getElementById('modal-price-label').textContent = event.price.currency || 'USD';
+      } else {
+        document.getElementById('modal-price-section').style.display = 'block';
+        document.getElementById('modal-price').textContent = 'See Tickets';
+        document.getElementById('modal-price-label').textContent = 'Price varies';
+      }
+
+      // Tickets link
+      const ticketsBtn = document.getElementById('modal-tickets');
+      if (event.url) {
+        ticketsBtn.href = event.url;
+        ticketsBtn.style.display = 'block';
+      } else {
+        ticketsBtn.style.display = 'none';
+      }
+
+      // Show modal
+      modalOverlay.classList.add('active');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeModal() {
+      modalOverlay.classList.remove('active');
+      document.body.style.overflow = '';
+    }
+
+    modalClose.addEventListener('click', closeModal);
+    modalOverlay.addEventListener('click', (e) => {
+      if (e.target === modalOverlay) closeModal();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeModal();
+    });
+
+    // Share button
+    document.getElementById('modal-share').addEventListener('click', () => {
+      const title = document.getElementById('modal-title').textContent;
+      if (navigator.share) {
+        navigator.share({ title, url: window.location.href });
+      } else {
+        navigator.clipboard.writeText(window.location.href);
+        alert('Link copied to clipboard!');
+      }
+    });
+
+    // Check API health
+    async function checkHealth() {
+      try {
+        const res = await fetch(`${API_BASE}/health`);
+        const data = await res.json();
+        const statusEl = document.getElementById('status');
+        if (data.status === 'ok') {
+          statusEl.className = 'status connected';
+          statusEl.innerHTML = `<span class="dot"></span><span>Connected${data.ticketmaster ? ' - Ticketmaster Active' : ''}</span>`;
+        }
+      } catch (e) {
+        const statusEl = document.getElementById('status');
+        statusEl.className = 'status disconnected';
+        statusEl.innerHTML = '<span class="dot"></span><span>Disconnected</span>';
+      }
+    }
+
+    // Fetch events
+    async function fetchEvents(endpoint, options = {}) {
+      const resultsEl = document.getElementById('results');
+      resultsEl.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading events...</p></div>';
+
+      try {
+        let res;
+        if (options.method === 'POST') {
+          res = await fetch(`${API_BASE}${endpoint}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(options.body || {})
+          });
+        } else {
+          res = await fetch(`${API_BASE}${endpoint}`);
+        }
+
+        const data = await res.json();
+        renderEvents(data.events || []);
+      } catch (e) {
+        resultsEl.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><p>Error loading events: ${e.message}</p></div>`;
+      }
+    }
+
+    // Render events
+    function renderEvents(events) {
+      currentEvents = events; // Store for modal lookup
+      const resultsEl = document.getElementById('results');
+      const countEl = document.getElementById('event-count');
+
+      countEl.textContent = `${events.length} event${events.length !== 1 ? 's' : ''}`;
+
+      if (events.length === 0) {
+        resultsEl.innerHTML = '<div class="empty-state"><div class="icon">📅</div><p>No events found</p></div>';
+        return;
+      }
+
+      resultsEl.innerHTML = '<div class="events-grid">' + events.map((event, index) => `
+        <div class="event-card" data-event-index="${index}" style="cursor: pointer;">
+          <img src="${event.imageUrl || 'https://via.placeholder.com/400x200/1a1a2e/4ade80?text=Event'}" alt="${event.title}" onerror="this.src='https://via.placeholder.com/400x200/1a1a2e/4ade80?text=Event'">
+          <div class="event-card-content">
+            <h3>${event.title}</h3>
+            <div class="event-meta">
+              <div>📅 ${new Date(event.startTime).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>
+              <div>📍 ${event.venue?.name || 'TBA'}${event.venue?.city ? `, ${event.venue.city}` : ''}</div>
+              ${event.price ? `<div>💰 $${event.price.min}${event.price.max !== event.price.min ? `-$${event.price.max}` : ''}</div>` : ''}
+            </div>
+            <div class="event-tags">
+              <span class="tag source">${event.source}</span>
+              ${event.vibe?.isHolistic ? '<span class="tag holistic">holistic</span>' : ''}
+              ${event.vibe?.isDance ? '<span class="tag dance">dance</span>' : ''}
+              ${(event.vibe?.moods || []).map(m => `<span class="tag">${m}</span>`).join('')}
+            </div>
+          </div>
+        </div>
+      `).join('') + '</div>';
+
+      // Add click handlers to event cards
+      document.querySelectorAll('.event-card').forEach(card => {
+        card.addEventListener('click', () => {
+          const index = parseInt(card.dataset.eventIndex);
+          if (currentEvents[index]) {
+            openModal(currentEvents[index]);
+          }
+        });
+      });
+    }
+
+    // Endpoint buttons
+    document.querySelectorAll('.endpoint-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.endpoint-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        const endpoint = btn.dataset.endpoint;
+        const title = btn.textContent.trim().replace(/^(GET|POST)\s*/, '');
+        document.getElementById('results-title').textContent = title;
+
+        if (endpoint === 'discover-filtered') {
+          // Use filters
+          const mood = document.getElementById('mood-filter').value;
+          const isHolistic = document.getElementById('filter-holistic').checked;
+          const isDance = document.getElementById('filter-dance').checked;
+
+          const body = {};
+          if (mood) body.moods = [mood];
+          if (isHolistic) body.isHolistic = true;
+          if (isDance) body.isDance = true;
+
+          fetchEvents('/api/v1/discover', { method: 'POST', body });
+        } else {
+          currentEndpoint = endpoint;
+          fetchEvents(endpoint);
+        }
+      });
+    });
+
+    // Filter changes trigger filtered search
+    ['mood-filter', 'filter-holistic', 'filter-dance'].forEach(id => {
+      document.getElementById(id).addEventListener('change', () => {
+        searchWithFilters();
+      });
+    });
+
+    // Location search
+    document.getElementById('search-location').addEventListener('click', () => {
+      const city = document.getElementById('city-filter').value.trim();
+      const state = document.getElementById('state-filter').value;
+      const zip = document.getElementById('zip-filter').value.trim();
+
+      currentLocation = { city, state };
+      if (zip) {
+        currentLocation.postalCode = zip;
+        currentLocation.city = ''; // Use zip instead of city
+      }
+
+      document.getElementById('results-title').textContent = zip ? `Events near ${zip}` : `Events in ${city}, ${state}`;
+      searchWithFilters();
+    });
+
+    // ZIP code enter key
+    document.getElementById('zip-filter').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') document.getElementById('search-location').click();
+    });
+
+    // City enter key
+    document.getElementById('city-filter').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') document.getElementById('search-location').click();
+    });
+
+    function searchWithFilters() {
+      const mood = document.getElementById('mood-filter').value;
+      const isHolistic = document.getElementById('filter-holistic').checked;
+      const isDance = document.getElementById('filter-dance').checked;
+
+      const body = { ...currentLocation };
+      if (mood) body.moods = [mood];
+      if (isHolistic) body.isHolistic = true;
+      if (isDance) body.isDance = true;
+
+      fetchEvents('/api/v1/discover', { method: 'POST', body });
+    }
+
+    // Initial load
+    checkHealth();
+    fetchEvents('/api/v1/discover/tonight');
+  </script>
+</body>
+</html>

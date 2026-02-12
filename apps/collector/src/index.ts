@@ -34,6 +34,12 @@ const adapterRegistry = new AdapterRegistry({
   bandsintown: {
     apiKey: process.env.BANDSINTOWN_APP_ID,
   },
+  luma: {
+    calendarApiId: process.env.LUMA_CALENDAR_IDS
+      ? process.env.LUMA_CALENDAR_IDS.split(',').map(s => s.trim())
+      : undefined,
+    apiKey: process.env.LUMA_API_KEY,
+  },
 });
 
 const enrichmentPipeline = new EnrichmentPipeline({

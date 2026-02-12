@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { MapPin, Search, Menu, X } from 'lucide-react';
 import { cn } from '@/lib/cn';
+import { PointsBadge } from '@/components/gamification/PointsBadge';
 
 interface HeaderProps {
   neighborhood?: string;
@@ -39,6 +40,9 @@ export function Header({ neighborhood, onLocationClick }: HeaderProps) {
 
           {/* Actions */}
           <div className="flex items-center gap-3">
+            {/* Points */}
+            <PointsBadge />
+
             {/* Location */}
             <button
               onClick={onLocationClick}

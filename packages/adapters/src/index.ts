@@ -12,6 +12,8 @@ export { AllEventsAdapter } from './allevents/index.js';
 export { BandsintownAdapter } from './bandsintown/index.js';
 export { HumanitixAdapter } from './humanitix/index.js';
 export { ClassPassAdapter } from './classpass/index.js';
+export { LumaAdapter } from './luma/index.js';
+export { DANZAdapter } from './danz/index.js';
 export { SchemaOrgCrawler } from './schema-crawler/index.js';
 
 // Adapter registry

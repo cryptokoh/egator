@@ -1,0 +1,25 @@
+{
+  "id": "flowb",
+  "name": "FlowB",
+  "description": "Privacy-centric assistant for events, dance community, and more",
+  "version": "0.3.0",
+  "entry": "./dist/index.js",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "danzSupabaseUrl": {
+        "type": "string",
+        "description": "Supabase REST URL for the DANZ.Now database"
+      },
+      "danzSupabaseKey": {
+        "type": "string",
+        "description": "Supabase API key for the DANZ.Now database"
+      },
+      "apiBaseUrl": {
+        "type": "string",
+        "default": "http://localhost:3000",
+        "description": "Base URL for the AIeGator events API"
+      }
+    }
+  }
+}

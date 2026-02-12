@@ -64,6 +64,15 @@ async function seed() {
       rateLimitPerSecond: 2,
     },
     {
+      id: 'luma',
+      name: 'Luma',
+      description: 'Event hosting and ticketing platform',
+      websiteUrl: 'https://lu.ma',
+      isActive: true,
+      isConfigured: true,
+      rateLimitPerSecond: 5,
+    },
+    {
       id: 'schema-crawler',
       name: 'Schema.org Crawler',
       description: 'Events extracted from structured data',
